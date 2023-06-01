@@ -6,17 +6,17 @@ This repository contains the code to reproduce the results of the saseR manuscri
 
 This repository contains the following main folders:
 
-$Aberrant-expression$: This folder stores the main workflows to reproduce the results of the aberrant expression benchmarks.
+`Aberrant-expression`: This folder stores the main workflows to reproduce the results of the aberrant expression benchmarks.
 
-$Aberrant-splicing$: This folder stores the main workflows to reproduce the results of the aberrant splicing benchmarks.
+`Aberrant-splicing`: This folder stores the main workflows to reproduce the results of the aberrant splicing benchmarks.
 
-$Differential-usage$: This folder stores the main workflows to reproduce the results of the differential usage benchmarks.
+`Differential-usage`: This folder stores the main workflows to reproduce the results of the differential usage benchmarks.
 
-$Data$: This folder stores the main R workflows to wrangle the datasets used. Additional data wrangling is done in the workflow.txt script.
+`Data`: This folder stores the main R workflows to wrangle the datasets used. Additional data wrangling is done in the workflow.txt script.
 
-$Figures$: This folder stores the scripts to reproduce the Figures published in the manuscript.
+`Figures`: This folder stores the scripts to reproduce the Figures published in the manuscript.
 
-$R-Functions$: This folder stores the functions used by saseR to perform aberrant expression or splicing analyses.
+`R-Functions` This folder stores the functions used by saseR to perform aberrant expression or splicing analyses.
 
 Additionally, a renv.lock file is included for reproducibility of the results, and three .yml files to install different conda environments used for tha analyses. saseRPaper.yml is the main conda environment used throughout the manuscript, rsem.1.3.0 was used to perform RSEM simulations, which required different depencies to avoid errors, and Fraser.2.0.yml was used to perform the analyses with FRASER 2.0, which uses the Intron Jaccard Index. When FRASER 2.0 was benchmarked, also the renv.lock file in the Aberrant-splicing file was used, rather than the renv.lock file from the main directory.
 
