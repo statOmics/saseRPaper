@@ -1,0 +1,94 @@
+---
+title: "Untitled"
+author: "Alex"
+date: "2/1/2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(ASpli)
+library(GenomicFeatures)
+library(lubridate)
+library(BiocParallel)
+library(data.table)
+library(SummarizedExperiment)
+library(dplyr)
+library(pracma)
+library(PRROC)
+set.seed(100)
+```
+
+```{r, import arguments}
+args <- (commandArgs(trailingOnly = TRUE))
+for (i in 1:length(args)) {
+  eval(parse(text = args[[i]]))
+}
+
+```
+
+```{r, show arguments}
+print(data_directory)
+print(function_directory)
+print(output_directory)
+
+
+
+```
+
+```{r}
+source(paste0(function_directory,
+              "/fitRUVMD-aberrant-splicing-maxiter-1.R"))
+source(paste0(function_directory, 
+              "/Accessors.R"))
+
+```
+
+
+```{r}
+data <- readRDS(file = paste0(data_directory, 
+                              "/Geuvadis/ASpli-counts.RDS"))
+
+
+```
+
+```{r}
+start_time <- Sys.time()
+
+filtered_counts <- FilterBinCounts(data)
+seBinCounts <- getCountsSplicing(filtered_counts, type = "bin")
+seBinCounts <- OffsetSplicing(seBinCounts)
+filter <- filterByExpr(seBinCounts,
+                            min.count = 10,
+                            min.total.count = 15,
+                            large.n = 10,
+                            min.prop = 0.7)
+seBinCounts <- seBinCounts[filter, ]
+metadata(seBinCounts)$design <- ~1
+
+end_time_filtering <- Sys.time()
+
+time_filtering <- end_time_filtering - start_time
+```
+
+
+```{r}
+start_time_analysis <- Sys.time()
+
+seFit <- fitRUVMD(se = seBinCounts, dimensions = 1)
+
+end_time <- Sys.time()
+
+time_analysis <- end_time - start_time_analysis
+total_time <- end_time - start_time
+
+
+saveRDS(object = seFit, 
+        file = paste0(output_directory,"/seFit_fRUV_1_iter_bins_Geuvadis.RDS"))
+
+```
+

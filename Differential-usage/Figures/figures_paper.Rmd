@@ -1,0 +1,652 @@
+---
+title: "figures_paper"
+output: html_document
+date: "2023-04-18"
+---
+
+```{r setup, include=FALSE, echo=FALSE}
+require("knitr")
+opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+```
+
+```{r, import arguments}
+ args <- (commandArgs(trailingOnly = TRUE))
+ for (i in 1:length(args)) {
+   eval(parse(text = args[[i]]))
+}
+ 
+```
+ 
+```{r}
+ print(output_directory)
+```
+
+```{r, message=FALSE, warning=FALSE}
+library(ggplot2)
+library(iCOBRA)
+library(patchwork)
+library(cowplot)
+library(ggpubr)
+
+```
+
+# Load Gtex scalbility results
+
+```{r}
+# read satuRn results
+load("./Scalability_benchmark/Results/satuRn_1.RData")
+load("./Scalability_benchmark/Results/satuRn_2.RData")
+
+# read edgeR_diffsplice results
+load("./Scalability_benchmark/Results/edgeR_diffsplice_1.RData")
+load("./Scalability_benchmark/Results/edgeR_diffsplice_2.RData")
+
+# read DEXSeq results
+load("./Scalability_benchmark/Results/DEXSeq_2.RData")
+load("./Scalability_benchmark/Results/DEXSeq_3.RData")
+load("./Scalability_benchmark/Results/DEXSeq_4.RData")
+
+# read edgeR_offset results
+load("./Scalability_benchmark/Results/edgeR_offset_1.RData")
+load("./Scalability_benchmark/Results/edgeR_offset_2.RData")
+
+# read DESeq2_offset results
+load("./Scalability_benchmark/Results/DESeq2_offset_1.RData")
+load("./Scalability_benchmark/Results/DESeq2_offset_2.RData")
+
+Results_all <- c(satuRn_1,
+                 satuRn_2,
+                 edgeR_diffsplice_1,
+                 edgeR_diffsplice_2,
+                 DEXSeq_2,
+                 DEXSeq_3,
+                 DEXSeq_4,
+                 edgeR_offset_1,
+                 edgeR_offset_2,
+                 DESeq2_offset_1,
+                 DESeq2_offset_2)
+
+bulk_results <-  as.data.frame(matrix(nrow = length(Results_all), ncol=10))
+colnames(bulk_results) <- c("method", 
+                            "groupSize", 
+                            "TXs", 
+                            "TXs_round", 
+                            "user", 
+                            "system", 
+                            "elapsed", 
+                            "DTU", 
+                            "removed", 
+                            "memory")
+bulk_results$method <- rep(c("satuRn", "edgeR_diffsplice", "DEXSeq","edgeR", "DESeq2"),
+                           times=c(18,18,16,18,18)) # add method labels
+round_to <- function(x, to = 1000) round(x/to)*to
+
+# get data in dataframe format
+for (i in seq_len(nrow(bulk_results))) {
+  bulk_results$groupSize[i] <- Results_all[[i]]$info$size
+  bulk_results$TXs[i] <- Results_all[[i]]$info$TXs
+  bulk_results$TXs_round[i] <- round_to(bulk_results$TXs[i])
+  bulk_results$user[i] <- unname(Results_all[[i]]$timing[1])
+  bulk_results$system[i] <- unname(Results_all[[i]]$timing[2])
+  bulk_results$elapsed[i] <- unname(Results_all[[i]]$timing[3])
+  bulk_results$DTU[i] <- ifelse(is.null(Results_all[[i]]$result),
+                                NA,
+                                Results_all[[i]]$result)
+  bulk_results$removed[i] <- Results_all[[i]]$removed
+  bulk_results$memory[i] <- Results_all[[i]]$memory[4]
+}
+
+rm(satuRn_1, satuRn_2, 
+   edgeR_diffsplice_1, edgeR_diffsplice_2, 
+   edgeR_offset_1, edgeR_offset_2, 
+   DEXSeq_2, DEXSeq_3, DEXSeq_4,
+   DESeq2_offset_1, DESeq2_offset_2,
+   Results_all)
+gc()
+```
+
+# Load Gtex performance results
+
+```{r}
+# Load metadata
+load(file="./Data/GTEx_benchmark_datasets_count.Rdata")
+metaInfo_Gtex <- gtexBenchmarkDataLenient
+
+# Load results
+load(file="./Data/GTEx_DTU_results_count_new.Rdata")
+gtexBenchmark <- c(
+    gtexDtuBenchmark_DESeq2_offset,
+    gtexDtuBenchmark_DEXSeq,
+    gtexDtuBenchmark_edgeRdiffsplice,
+    gtexDtuBenchmark_edgeR_offset,
+    gtexDtuBenchmark_satuRn
+)
+#names(gtexBenchmark) <- gsub("edgeR_diffsplice","edgeR-diffsplice",names(gtexBenchmark))
+### Remove empty enteries (due to not tested due to too many samples for reasonable runtime)
+gtexBenchmark  <- gtexBenchmark[which(
+    sapply(gtexBenchmark, function(x) ! is.null(x$dtuAnalysis))
+)]
+rm(gtexBenchmarkDataLenient,
+   gtexBenchmarkDataStringent,
+   gtexDtuBenchmark_DESeq2_offset,
+  gtexDtuBenchmark_DEXSeq,
+  gtexDtuBenchmark_edgeRdiffsplice,
+  gtexDtuBenchmark_edgeR_offset,
+  gtexDtuBenchmark_satuRn)
+invisible(gc())
+```
+
+# Load Hsapiens performance results
+
+```{r}
+Hs_truth <- read.table(file = "./Data/Hsapiens_metadata_1.txt", sep = "\t", header = TRUE)
+load(file="./Data/Hsapiens_DTU_results_count_new.Rdata")
+HsapiensBenchmark <- c(HsDtuBenchmark_satuRn,
+     HsDtuBenchmark_DEXSeq,
+     HsDtuBenchmark_edgeRdiffsplice,
+     HsDtuBenchmark_edgeR_offset,
+     HsDtuBenchmark_DESeq2_offset)
+HsapiensBenchmark  <- HsapiensBenchmark[which(
+    sapply(HsapiensBenchmark, function(x) ! is.null(x$dtuAnalysis))
+)]
+rm(HsDtuBenchmark_satuRn,
+     HsDtuBenchmark_DEXSeq,
+     HsDtuBenchmark_edgeRdiffsplice,
+     HsDtuBenchmark_edgeR_offset,
+     HsDtuBenchmark_DESeq2_offset)
+invisible(gc())
+```
+
+# Load Chen performance results
+
+## Load truth file
+
+```{r}
+load(file="./Data/Chen_benchmark_datasets_count.Rdata")
+metaInfo_Chen <- ChenBenchmarkLenient
+rm(ChenBenchmarkLenient,ChenBenchmarkStringent)
+
+# Load DTU performance results
+load(file="./Data/Chen_DTU_results_count_new.Rdata")
+ChenBenchmark <- c(ChenDtuBenchmark_satuRn,
+                   ChenDtuBenchmark_DEXSeq,
+                   ChenDtuBenchmark_edgeRdiffsplice,
+                   ChenDtuBenchmark_edgeR_offset,
+                   ChenDtuBenchmark_DESeq2_offset)
+
+# Remove empty entries (due to not tested - aka to many samples for reasonable runtime)
+ChenBenchmark  <- ChenBenchmark[which(
+    sapply(ChenBenchmark, function(x) ! is.null(x$dtuAnalysis)))]
+rm(ChenDtuBenchmark_satuRn,
+   ChenDtuBenchmark_DEXSeq,
+   ChenDtuBenchmark_edgeRdiffsplice,
+   ChenDtuBenchmark_edgeR_offset,
+   ChenDtuBenchmark_DESeq2_offset)
+invisible(gc())
+```
+
+# Figure 1a
+
+
+```{r}
+data_30K <- bulk_results[which(bulk_results$TXs_round == 30000),]
+data_30K_sub <- data_30K[data_30K$method %in% c("edgeR_diffsplice", "DEXSeq", "satuRn"),]
+data_30K_sub$method[data_30K_sub$method=="edgeR_diffsplice"] <- c("edgeR-diffspliceDGE")
+data_30K_sub$method <- factor(data_30K_sub$method, levels = c("edgeR-diffspliceDGE", "DEXSeq", "satuRn"))
+plot1a <- ggplot(data = data_30K_sub, aes(x=groupSize,y=elapsed/60,color=method)) +
+  geom_line() +
+  geom_point(key_glyph = "blank") +
+  scale_color_manual(values=c("edgeR-diffspliceDGE" = "#F0E442", "DEXSeq" = "#E69F00", "satuRn" = "black")) +
+  theme_bw() +
+  theme(legend.position = "none") +
+  ylab("Elapsed  time (min)") + 
+  xlab("Number of samples per group") + 
+  theme(axis.text=element_text(size=10), axis.title=element_text(size=12))  + 
+  theme( legend.title = element_blank(),legend.position = "bottom", 
+         legend.text = element_text(size = 12))
+plot1a
+```
+
+# Figure 1b
+
+```{r}
+get_pvalues <- function(dataset) {
+  
+  get_all_txs <- function(dataset){
+  
+    all_txs <- c()
+    current_txs <- as.character(dataset[[1]]$dtuAnalysis$TXNAME)
+    all_txs <- c(all_txs, current_txs)
+    all_txs <- unique(all_txs)
+    return(all_txs)
+  }
+  
+  all_txs <- get_all_txs(dataset)
+  nmethods <- length(dataset)
+  pvalues <- matrix(data=NA, nrow=length(all_txs), ncol=nmethods)
+  rownames(pvalues) <- all_txs
+  
+  for (i in 1:nmethods) {
+    pvalues_new <- data.frame(dataset[[i]]$dtuAnalysis$p_value)
+    rownames(pvalues_new) <- as.character(dataset[[i]]$dtuAnalysis$TXNAME)
+    colnames(pvalues_new) <- names(dataset)[i]
+
+    pvalues[,i] <- pvalues_new[match(rownames(pvalues),rownames(pvalues_new)),1]
+  }
+  
+  pvalues <- apply(pvalues, 2, as.numeric)
+  rownames(pvalues) <- all_txs
+  pvalues <- as.data.frame(pvalues)
+  pvalues <- pvalues[order(rownames(pvalues)),]
+  colnames(pvalues) <- methods
+
+  return(pvalues)
+}
+```
+
+```{r}
+methods <- c("DEXSeq", "edgeR_diffsplice", "satuRn")
+colors <- c("#009E73", "#E69F00", "#F0E442", 
+            "#0072B2", "black")
+names(colors) <- c("DESeq2_offset", 
+                   "DEXSeq",
+                   "edgeR_diffsplice",
+                   "edgeR_offset", 
+                   "satuRn")
+
+gtexBenchmark_methods <- gtexBenchmark[unique(grep(paste(methods,collapse="|"), 
+                                                   names(gtexBenchmark), value=TRUE))]
+
+gtexBenchmark_5v5_lenient_rep1 <- gtexBenchmark_methods[grepl("5_rep_1_filterLenient", names(gtexBenchmark_methods))] 
+gtexBenchmark_5v5_lenient_rep2 <- gtexBenchmark_methods[grepl("5_rep_2_filterLenient", names(gtexBenchmark_methods))]
+gtexBenchmark_5v5_lenient_rep3 <- gtexBenchmark_methods[grepl("5_rep_3_filterLenient", names(gtexBenchmark_methods))]
+
+pvalues_1 <- get_pvalues(gtexBenchmark_5v5_lenient_rep1)
+pvalues_2 <- get_pvalues(gtexBenchmark_5v5_lenient_rep2)
+pvalues_3 <- get_pvalues(gtexBenchmark_5v5_lenient_rep3)
+
+truth_1 <- metaInfo_Gtex$samples_used_5_rep_1_filterLenient$metaInfo
+truth_2 <- metaInfo_Gtex$samples_used_5_rep_2_filterLenient$metaInfo
+truth_3 <- metaInfo_Gtex$samples_used_5_rep_3_filterLenient$metaInfo
+
+truth_1 <- truth_1[match(rownames(pvalues_1), truth_1$TXNAME),]
+truth_2 <- truth_2[match(rownames(pvalues_2), truth_2$TXNAME),]
+truth_3 <- truth_3[match(rownames(pvalues_3), truth_3$TXNAME),]
+
+rownames(pvalues_1) <- rownames(truth_1) <- paste0(rownames(pvalues_1), "_1")
+rownames(pvalues_2) <- rownames(truth_2) <- paste0(rownames(pvalues_2), "_2")
+rownames(pvalues_3) <- rownames(truth_3) <- paste0(rownames(pvalues_3), "_3")
+
+pvalues_full <- rbind(pvalues_1,pvalues_2,pvalues_3)
+truth_full <- rbind(truth_1,truth_2,truth_3)
+truth_full$gene_modified <- as.numeric(truth_full$txSwapped)
+
+cobra <- COBRAData(pval = pvalues_full, truth = as.data.frame(truth_full))
+cobra <- calculate_adjp(cobra)
+cobra1perf <- calculate_performance(cobra, 
+                                    binary_truth = "gene_modified", 
+                                    cont_truth = "none", 
+                                    splv = "none", 
+                                    aspects = c("fdrtpr", "fdrtprcurve", "overlap"))
+
+cobraplot <- prepare_data_for_plot(cobra1perf,
+                                   colorscheme = "Dark2", 
+                                   facetted = TRUE)
+        
+# customize colors
+new_col <- colors[which(names(colors)%in%methods)]
+new_col <- c(rep(c(new_col, "#999999"),4),rep("white",2*(length(methods)+1)))
+names(new_col) <- names(cobraplot@plotcolors)
+cobraplot@plotcolors <- new_col
+
+# create plot
+plot1b <- plot_fdrtprcurve(cobraplot, xaxisrange = c(0,0.2), yaxisrange = c(0,0.75))
+plot1b <- plot1b +
+    theme(strip.background = element_blank(),
+    strip.text.x = element_blank(),
+    plot.title = element_text(size=10),
+    axis.text.x = element_text(size = 10),
+    axis.text.y = element_text(size = 10),
+    axis.title.x = element_text(size = 12),
+    axis.title.y = element_text(size = 12),
+    legend.position = "none") 
+plot1b
+```
+
+```{r}
+legend <- get_legend(plot1a)
+prow <- plot_grid(plot1b + theme(legend.position = "none"), plot1a + theme(legend.position = "none"), 
+                  labels = c("A","B"), ncol = 2,
+                  rel_heights = c(1,1), align = "h")
+Figure_1 <- plot_grid(prow,legend,ncol = 1, rel_heights= c(1,0.1))
+Figure_1
+```
+
+```{r}
+ggsave(paste0(output_directory,"/Figure-1.png"), Figure_1, 
+       device = "png", width = 9, height = 4.5, dpi = 300)
+ggsave(paste0(output_directory,"/Figure-1.eps"), Figure_1, 
+       device = cairo_ps, width = 9, height = 4.5, dpi = 300)
+ggsave(paste0(output_directory,"/Figure-1.pdf"), Figure_1, 
+       device = "pdf", width = 9, height = 4.5, dpi = 300)
+
+```
+
+
+# Supplementary figure 1a
+
+```{r}
+HsapiensBenchmark_methods <- HsapiensBenchmark[unique(grep(paste(methods,collapse="|"), 
+                                                           names(HsapiensBenchmark), 
+                                                           value=TRUE))]
+HsapiensBenchmark_select <- HsapiensBenchmark_methods[c("DEXSeq_filterLenient",
+                                                        "edgeR_diffsplice_filterLenient",
+                                                        "satuRn_filterLenient")]
+pvalues <- matrix(data=NA, 
+                  nrow=nrow(HsapiensBenchmark_select[[1]]$dtuAnalysis), 
+                  ncol=length(methods))
+rownames(pvalues) <- HsapiensBenchmark_select[[1]]$dtuAnalysis$TXNAME
+for (i in 1:length(methods)) {
+  pvalues_new <- data.frame(HsapiensBenchmark_select[[i]]$dtuAnalysis$p_value)
+  rownames(pvalues_new) <- HsapiensBenchmark_select[[i]]$dtuAnalysis$TXNAME
+  colnames(pvalues_new) <- names(HsapiensBenchmark_select)[i]
+
+  pvalues[,i] <- pvalues_new[match(rownames(pvalues),rownames(pvalues_new)),1]
+}
+pvalues <- apply(pvalues, 2, as.numeric)
+rownames(pvalues) <- HsapiensBenchmark_select[[1]]$dtuAnalysis$TXNAME
+pvalues <- as.data.frame(pvalues)
+pvalues <- pvalues[order(rownames(pvalues)),]
+pvalues[is.na(pvalues)] <- 1
+colnames(pvalues) <- c("DEXSeq", "edgeR_diffsplice", "satuRn")
+
+Hs_truth <- Hs_truth[Hs_truth$transcript_id %in% rownames(pvalues),]
+Hs_truth <- Hs_truth[order(Hs_truth$transcript_id),]
+rownames(Hs_truth) <- Hs_truth$transcript_id
+
+cobra <- COBRAData(pval = pvalues, truth = Hs_truth)
+cobra <- calculate_adjp(cobra)
+cobra1perf <- calculate_performance(cobra, 
+                                    binary_truth = "transcript_ds_status", 
+                                    cont_truth = "none", 
+                                    splv = "none", 
+                                    aspects = c("fdrtpr", "fdrtprcurve", "overlap"))
+cobraplot <- prepare_data_for_plot(cobra1perf, 
+                                   colorscheme = "Dark2",
+                                   facetted = TRUE)
+
+new_col <- colors[which(names(colors)%in%methods)]
+new_col <- c(rep(c(new_col, "#999999"),4),rep("white",2*(length(methods)+1)))
+names(new_col) <- names(cobraplot@plotcolors)
+cobraplot@plotcolors <- new_col
+
+plot_s1a <- plot_fdrtprcurve(cobraplot, xaxisrange = c(0, 0.35), yaxisrange = c(0,0.85))
+
+plot_s1a <- plot_s1a +
+  theme(strip.background = element_blank(),
+      strip.text.x = element_blank(),
+      plot.title = element_text(size=10),
+      axis.text.x = element_text(size = 10),
+      axis.text.y = element_text(size = 10),
+      axis.title.x = element_text(size = 12),
+      axis.title.y = element_text(size = 12),
+      legend.position = "none")
+
+plot_s1a
+```
+
+# Supplementary figure 1b
+
+```{r}
+ChenBenchmark_methods <- ChenBenchmark[unique(grep(paste(methods,collapse="|"), 
+                                                   names(ChenBenchmark), value=TRUE))]
+ChenBenchmark_methods <- ChenBenchmark_methods[sort(names(ChenBenchmark_methods))]
+
+ChenBenchmark_20v20_lenient_rep1 <- ChenBenchmark_methods[grepl("20_rep_1_filterLenient", names(ChenBenchmark_methods))] 
+ChenBenchmark_20v20_lenient_rep2 <- ChenBenchmark_methods[grepl("20_rep_2_filterLenient", names(ChenBenchmark_methods))]
+ChenBenchmark_20v20_lenient_rep3 <- ChenBenchmark_methods[grepl("20_rep_3_filterLenient", names(ChenBenchmark_methods))]
+
+pvalues_1 <- get_pvalues(ChenBenchmark_20v20_lenient_rep1)
+pvalues_2 <- get_pvalues(ChenBenchmark_20v20_lenient_rep2)
+pvalues_3 <- get_pvalues(ChenBenchmark_20v20_lenient_rep3)
+
+truth_1 <- metaInfo_Chen$samples_used_20_rep_1_filterLenient$metaInfo
+truth_2 <- metaInfo_Chen$samples_used_20_rep_2_filterLenient$metaInfo
+truth_3 <- metaInfo_Chen$samples_used_20_rep_3_filterLenient$metaInfo
+
+truth_1 <- truth_1[match(rownames(pvalues_1), truth_1$TXNAME),]
+truth_2 <- truth_2[match(rownames(pvalues_2), truth_2$TXNAME),]
+truth_3 <- truth_3[match(rownames(pvalues_3), truth_3$TXNAME),]
+
+rownames(pvalues_1) <- rownames(truth_1) <- paste0(rownames(pvalues_1), "_1")
+rownames(pvalues_2) <- rownames(truth_2) <- paste0(rownames(pvalues_2), "_2")
+rownames(pvalues_3) <- rownames(truth_3) <- paste0(rownames(pvalues_3), "_3")
+
+pvalues_full <- rbind(pvalues_1,pvalues_2,pvalues_3)
+truth_full <- rbind(truth_1,truth_2,truth_3)
+truth_full$gene_modified <- as.numeric(truth_full$txSwapped)
+
+cobra <- COBRAData(pval = pvalues_full, truth = as.data.frame(truth_full))
+cobra <- calculate_adjp(cobra)
+cobra1perf <- calculate_performance(cobra, 
+                                    binary_truth = "gene_modified", 
+                                    cont_truth = "none", 
+                                    splv = "none", 
+                                    aspects = c("fdrtpr", "fdrtprcurve", "overlap"))
+
+cobraplot <- prepare_data_for_plot(cobra1perf,
+                                   colorscheme = "Dark2", 
+                                   facetted = TRUE)
+        
+# customize colors
+new_col <- colors[which(names(colors)%in%methods)]
+new_col <- c(rep(c(new_col, "#999999"),4),rep("white",2*(length(methods)+1)))
+names(new_col) <- names(cobraplot@plotcolors)
+cobraplot@plotcolors <- new_col
+
+# create plot
+plot_s1b <- plot_fdrtprcurve(cobraplot, xaxisrange = c(0,0.2), yaxisrange = c(0,0.75))
+plot_s1b <- plot_s1b +
+    theme(strip.background = element_blank(),
+    strip.text.x = element_blank(),
+    plot.title = element_text(size=10),
+    axis.text.x = element_text(size = 10),
+    axis.text.y = element_text(size = 10),
+    axis.title.x = element_text(size = 12),
+    axis.title.y = element_text(size = 12), 
+    legend.position = "none")
+plot_s1b
+```
+
+```{r}
+prow <- plot_grid(plot_s1a + theme(legend.position = "none"), plot_s1b + theme(legend.position = "none"), 
+                  labels = c("A","B"), ncol = 2,
+                  rel_heights = c(1,1), align = "h")
+Figure_1s <- plot_grid(prow,legend,ncol = 1, rel_heights= c(1,0.1))
+Figure_1s
+```
+```{r}
+ggsave(paste0(output_directory,"/Supplementary-Figure-1.png"), Figure_1s, 
+       device = "png", width = 9, height = 4.5, dpi = 300)
+ggsave(paste0(output_directory,"/Supplementary-Figure-1.eps"), Figure_1s, 
+       device = cairo_ps, width = 9, height = 4.5, dpi = 300)
+ggsave(paste0(output_directory,"/Supplementary-Figure-1.pdf"), Figure_1s, 
+       device = "pdf", width = 9, height = 4.5, dpi = 300)
+
+```
+
+# Figure 2a
+
+```{r}
+data_30K <- bulk_results[which(bulk_results$TXs_round == 30000),]
+data_30K_sub <- data_30K[data_30K$method %in% c("DESeq2", "edgeR", "edgeR_diffsplice", "satuRn"),]
+data_30K_sub$method[data_30K_sub$method=="edgeR_diffsplice"] <- c("edgeR-diffspliceDGE")
+data_30K_sub$method <- factor(data_30K_sub$method, levels = c("DESeq2", "edgeR", "edgeR-diffspliceDGE", "satuRn"))
+
+plot2a <- ggplot(data = data_30K_sub, aes(x=groupSize,y=elapsed/60,color=method)) +
+  geom_line() +
+  geom_point(key_glyph = "blank") +
+  scale_color_manual(values=c("DESeq2" = "#009E73", "edgeR" = "#0072B2", "edgeR-diffspliceDGE" = "#F0E442", 
+                              "DEXSeq" = "#E69F00", "satuRn" = "black"))+
+  theme_bw() +
+  ylab("Elapsed  time (min)") + 
+  xlab("Number of samples per group") + 
+  theme(axis.text=element_text(size=10), axis.title=element_text(size=12))  + 
+  theme( legend.title = element_blank(),legend.position = "bottom", 
+         legend.text = element_text(size = 12))
+plot2a
+```
+
+# Figure 2b
+
+```{r}
+methods <- sort(c("DEXSeq", "DESeq2_offset", "edgeR_offset", "edgeR_diffsplice", "satuRn"))
+colors <- c("#009E73", "#E69F00", "#0072B2", "#F0E442" , "black")
+names(colors) <- methods
+
+gtexBenchmark_methods <- gtexBenchmark[unique(grep(paste(methods,collapse="|"), 
+                                                   names(gtexBenchmark), value=TRUE))]
+
+gtexBenchmark_5v5_lenient_rep1 <- gtexBenchmark_methods[grepl("5_rep_1_filterLenient", names(gtexBenchmark_methods))] 
+gtexBenchmark_5v5_lenient_rep2 <- gtexBenchmark_methods[grepl("5_rep_2_filterLenient", names(gtexBenchmark_methods))]
+gtexBenchmark_5v5_lenient_rep3 <- gtexBenchmark_methods[grepl("5_rep_3_filterLenient", names(gtexBenchmark_methods))]
+
+pvalues_1 <- get_pvalues(gtexBenchmark_5v5_lenient_rep1)
+pvalues_2 <- get_pvalues(gtexBenchmark_5v5_lenient_rep2)
+pvalues_3 <- get_pvalues(gtexBenchmark_5v5_lenient_rep3)
+
+truth_1 <- metaInfo_Gtex$samples_used_5_rep_1_filterLenient$metaInfo
+truth_2 <- metaInfo_Gtex$samples_used_5_rep_2_filterLenient$metaInfo
+truth_3 <- metaInfo_Gtex$samples_used_5_rep_3_filterLenient$metaInfo
+
+truth_1 <- truth_1[match(rownames(pvalues_1), truth_1$TXNAME),]
+truth_2 <- truth_2[match(rownames(pvalues_2), truth_2$TXNAME),]
+truth_3 <- truth_3[match(rownames(pvalues_3), truth_3$TXNAME),]
+
+rownames(pvalues_1) <- rownames(truth_1) <- paste0(rownames(pvalues_1), "_1")
+rownames(pvalues_2) <- rownames(truth_2) <- paste0(rownames(pvalues_2), "_2")
+rownames(pvalues_3) <- rownames(truth_3) <- paste0(rownames(pvalues_3), "_3")
+
+pvalues_full <- rbind(pvalues_1,pvalues_2,pvalues_3)
+truth_full <- rbind(truth_1,truth_2,truth_3)
+truth_full$gene_modified <- as.numeric(truth_full$txSwapped)
+
+colnames(pvalues_full)[c(1,4)] <- c("DESeq2", "edgeR")
+
+cobra <- COBRAData(pval = pvalues_full, truth = as.data.frame(truth_full))
+cobra <- calculate_adjp(cobra)
+cobra1perf <- calculate_performance(cobra, 
+                                    binary_truth = "gene_modified", 
+                                    cont_truth = "none", 
+                                    splv = "none", 
+                                    aspects = c("fdrtpr", "fdrtprcurve", "overlap"))
+
+cobraplot <- prepare_data_for_plot(cobra1perf,
+                                   colorscheme = "Dark2", 
+                                   facetted = TRUE)
+        
+# customize colors
+new_col <- colors[which(names(colors)%in%methods)]
+new_col <- c(rep(c(new_col, "#999999"),4),rep("white",2*(length(methods)+1)))
+names(new_col) <- names(cobraplot@plotcolors)
+cobraplot@plotcolors <- new_col
+
+# create plot
+plot2b <- plot_fdrtprcurve(cobraplot, xaxisrange = c(0,0.2), yaxisrange = c(0,0.75))
+plot2b <- plot2b +
+    theme(strip.background = element_blank(),
+    strip.text.x = element_blank(),
+    plot.title = element_text(size=10),
+    axis.text.x = element_text(size = 10),
+    axis.text.y = element_text(size = 10),
+    axis.title.x = element_text(size = 12),
+    axis.title.y = element_text(size = 12),
+    legend.position = "none")
+plot2b
+```
+
+# Figure 2c
+
+```{r}
+ChenBenchmark_methods <- ChenBenchmark[unique(grep(paste(methods,collapse="|"), 
+                                                   names(ChenBenchmark), value=TRUE))]
+ChenBenchmark_methods <- ChenBenchmark_methods[sort(names(ChenBenchmark_methods))]
+
+ChenBenchmark_20v20_lenient_rep1 <- ChenBenchmark_methods[grepl("20_rep_1_filterLenient", names(ChenBenchmark_methods))] 
+ChenBenchmark_20v20_lenient_rep2 <- ChenBenchmark_methods[grepl("20_rep_2_filterLenient", names(ChenBenchmark_methods))]
+ChenBenchmark_20v20_lenient_rep3 <- ChenBenchmark_methods[grepl("20_rep_3_filterLenient", names(ChenBenchmark_methods))]
+
+pvalues_1 <- get_pvalues(ChenBenchmark_20v20_lenient_rep1)
+pvalues_2 <- get_pvalues(ChenBenchmark_20v20_lenient_rep2)
+pvalues_3 <- get_pvalues(ChenBenchmark_20v20_lenient_rep3)
+
+truth_1 <- metaInfo_Chen$samples_used_20_rep_1_filterLenient$metaInfo
+truth_2 <- metaInfo_Chen$samples_used_20_rep_2_filterLenient$metaInfo
+truth_3 <- metaInfo_Chen$samples_used_20_rep_3_filterLenient$metaInfo
+
+truth_1 <- truth_1[match(rownames(pvalues_1), truth_1$TXNAME),]
+truth_2 <- truth_2[match(rownames(pvalues_2), truth_2$TXNAME),]
+truth_3 <- truth_3[match(rownames(pvalues_3), truth_3$TXNAME),]
+
+rownames(pvalues_1) <- rownames(truth_1) <- paste0(rownames(pvalues_1), "_1")
+rownames(pvalues_2) <- rownames(truth_2) <- paste0(rownames(pvalues_2), "_2")
+rownames(pvalues_3) <- rownames(truth_3) <- paste0(rownames(pvalues_3), "_3")
+
+pvalues_full <- rbind(pvalues_1,pvalues_2,pvalues_3)
+colnames(pvalues_full)[c(1,4)] <- c("DESeq2", "edgeR")
+truth_full <- rbind(truth_1,truth_2,truth_3)
+truth_full$gene_modified <- as.numeric(truth_full$txSwapped)
+
+cobra <- COBRAData(pval = pvalues_full, truth = as.data.frame(truth_full))
+cobra <- calculate_adjp(cobra)
+cobra1perf <- calculate_performance(cobra, 
+                                    binary_truth = "gene_modified", 
+                                    cont_truth = "none", 
+                                    splv = "none", 
+                                    aspects = c("fdrtpr", "fdrtprcurve", "overlap"))
+
+cobraplot <- prepare_data_for_plot(cobra1perf,
+                                   colorscheme = "Dark2", 
+                                   facetted = TRUE)
+        
+# customize colors
+new_col <- colors[which(names(colors)%in%methods)]
+new_col <- c(rep(c(new_col, "#999999"),4),rep("white",2*(length(methods)+1)))
+names(new_col) <- names(cobraplot@plotcolors)
+cobraplot@plotcolors <- new_col
+
+# create plot
+plot2c <- plot_fdrtprcurve(cobraplot, xaxisrange = c(0,0.4), yaxisrange = c(0,0.75))
+plot2c <- plot2c +
+    theme(strip.background = element_blank(),
+    strip.text.x = element_blank(),
+    plot.title = element_text(size=10),
+    axis.text.x = element_text(size = 10),
+    axis.text.y = element_text(size = 10),
+    axis.title.x = element_text(size = 12),
+    axis.title.y = element_text(size = 12), 
+    legend.position = "none")
+plot2c
+```
+
+
+
+```{r}
+legend <- get_legend(plot2a)
+prow <- plot_grid(plot2b + theme(legend.position = "none"), plot2c + theme(legend.position = "none"),
+                  plot2a + theme(legend.position = "none"),
+                  labels = c("A","B","C"), ncol = 3,
+                  rel_heights = c(1,1,1), align = "h")
+Figure_2 <- plot_grid(prow,legend,ncol = 1, rel_heights= c(1,0.1))
+Figure_2
+```
+
+```{r}
+ggsave(paste0(output_directory,"/Figure-3.png"), Figure_2, 
+       device = "png", width = 9, height = 4.5, dpi = 300)
+ggsave(paste0(output_directory,"/Figure-3.eps"), Figure_2, 
+       device = cairo_ps, width = 9, height = 4.5, dpi = 300)
+ggsave(paste0(output_directory,"/Figure-3.pdf"), Figure_2, 
+       device = "pdf", width = 9, height = 4.5, dpi = 300)
+
+```

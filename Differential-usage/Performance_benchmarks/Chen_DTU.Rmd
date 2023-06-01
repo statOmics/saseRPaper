@@ -1,0 +1,211 @@
+---
+title: "2_Chen_DTU"
+author: "Jeroen Gilis"
+date: "05/11/2020"
+output: html_document
+---
+
+**In order to run this script (Chen_DTU.Rmd), the dataset**
+**Chen_benchmark_datasets_count.Rdata is required.** This file can be downloaded
+from Zenodo.
+
+Here we run the DTU analyses for all 5 methods on the Chen benchmark datasets. 
+Note that for DEXSeq and DRIMSeq we only run the datasets with 20 cells in each 
+group, as these methods do not scale to large datasets.
+
+**If you do not want to run this script, its output can also be downloaded**
+**from Zenodo: Chen_DTU_results_count.Rdata **
+
+```{r setup, include=FALSE, echo=FALSE}
+require("knitr")
+opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+```
+
+# Load DTU methods
+
+Source file that allows running all seven DTU methods that were assessed in this paper: satuRn, DoubleExpSeq, limma diffsplice, edgeRdiffsplice, DEXSeq, DRIMseq and NBSplice.
+
+```{r, message=FALSE, warning=FALSE}
+### load libraries
+library(edgeR)
+library(DEXSeq)
+library(satuRn)
+library(doMC)
+library(scuttle)
+library(SingleCellExperiment)
+
+source(file="./Performance_benchmarks/DTU_methods.R")
+```
+
+# Set up parallel execution
+
+Note that the optimal parameter setting for parallelizing the DTU analyses depends on your specific computing system.
+
+```{r}
+if(TRUE) {
+    nrCores <- 1
+
+    if(nrCores != 1) {
+        doParallel <- TRUE
+        doProgress <- 'none'
+
+        registerDoMC(cores = nrCores)
+    } else {
+        doParallel <- FALSE
+        doProgress <- 'text'
+    }
+}
+```
+
+# Run all analyses 
+
+Run the DTU analyses for all 6 methods on all (12) Chen benchmark datasets. Note that for DEXSeq and DRIMSeq we only run the datasets with 20 cells in each group, as these methods do not scale to large datasets. NBSplice was omitted as it does not converge on datasets with many zeroes.
+This code runs approximately 1.5 hours on a MacBook Pro 2018, processor; 2,3 GHz Quad-Core Intel Core i5, 16GB RAM. Most of this runtime was attributed to the DEXSeq and DRIMSeq analyses.
+
+```{r}
+### Load benchmark data
+load(file="./Data/Chen_benchmark_datasets_count.Rdata")
+
+### Run DTU analyses on benchmark data
+print("start satuRn")
+tStart <- Sys.time()
+suppressWarnings(ChenDtuBenchmark_satuRn <- plyr::llply(
+    .data = ChenBenchmarkLenient,
+    .inform = TRUE,
+    .fun = function(localData) {
+        ### Perform DTU analysis
+        localRes <- satuRn_DTU(
+            countData  = localData$data,
+            tx2gene    = localData$metaInfo,
+            sampleData = localData$design
+        )
+
+        ### Massage
+        localRes$gene_modified <- localData$metaInfo$gene_modified[match(
+            localRes$TXNAME, localData$metaInfo$TXNAME
+        )]
+
+        ### Return result
+        return(list(dtuAnalysis = localRes))
+    }
+))
+difftime(Sys.time(), tStart)
+
+print("start edgeR_diffsplice")
+tStart <- Sys.time()
+ChenDtuBenchmark_edgeRdiffsplice <- plyr::llply(
+    .data = ChenBenchmarkLenient,
+    .parallel = doParallel,
+    .progress = doProgress,
+    .inform = TRUE,
+    .fun = function(localData) {
+        ### Perform DTU analysis
+        localRes <- edgeR_diffsplice_DTU(
+            countData  = localData$data,
+            tx2gene    = localData$metaInfo,
+            sampleData = localData$design
+        )
+
+        ### Massage
+        localRes$gene_modified <- localData$metaInfo$gene_modified[match(
+            localRes$TXNAME, localData$metaInfo$TXNAME)]
+
+        ### Return result
+        return(list(dtuAnalysis = localRes))
+    }
+)
+difftime(Sys.time(), tStart)
+
+print("start edgeR_offset")
+tStart <- Sys.time()
+ChenDtuBenchmark_edgeR_offset <- plyr::llply(
+    .data = ChenBenchmarkLenient,
+    .parallel = doParallel,
+    .progress = doProgress,
+    .inform = TRUE,
+    .fun = function(localData) {
+        ### Perform DTU analysis
+        localRes <- edgeR_offset_DTU(
+            countData  = localData$data,
+            tx2gene    = localData$metaInfo,
+            sampleData = localData$design)
+        ### Massage
+        localRes$gene_modified <- localData$metaInfo$gene_modified[match(
+            localRes$TXNAME, localData$metaInfo$TXNAME)]
+        ### Return result
+        return(list(dtuAnalysis = localRes))
+    })
+difftime(Sys.time(), tStart)
+
+
+print("start DESeq2_offset")
+tStart <- Sys.time()
+ChenDtuBenchmark_DESeq2_offset <- plyr::llply(
+    .data = ChenBenchmarkLenient,
+    .parallel = doParallel,
+    .progress = doProgress,
+    .inform = TRUE,
+    .fun = function(localData) {
+        ### Perform DTU analysis
+        localRes <- DESeq2_offset_DTU(
+            countData  = localData$data,
+            tx2gene    = localData$metaInfo,
+            sampleData = localData$design)
+        ### Massage
+        localRes$gene_modified <- localData$metaInfo$gene_modified[match(
+            localRes$TXNAME, localData$metaInfo$TXNAME)]
+        ### Return result
+        return(list(dtuAnalysis = localRes))
+    })
+difftime(Sys.time(), tStart)
+
+print("start DEXSeq")
+tStart <- Sys.time()
+ChenDtuBenchmark_DEXSeq <- plyr::llply(
+    .data = ChenBenchmarkLenient,
+    .parallel = doParallel,
+    .progress = doProgress,
+    .inform = TRUE,
+    .fun = function(localData) {
+        
+        if(ncol(localData$data) > 40) {
+            return(NULL)
+        }
+      
+        ### Perform DTU analysis
+        localRes <- DEXSeq_DTU(
+            countData  = localData$data,
+            tx2gene    = localData$metaInfo,
+            sampleData = localData$design
+        )
+        ### Massage
+        localRes$gene_modified <- localData$metaInfo$gene_modified[match(
+            localRes$TXNAME, localData$metaInfo$TXNAME
+        )]
+
+        ### Return result
+        return(list(dtuAnalysis = localRes))
+    }
+)
+difftime(Sys.time(), tStart)
+
+
+### add method name to list names for easy post-analysis
+names(ChenDtuBenchmark_satuRn) <- paste0('satuRn_', names(ChenDtuBenchmark_satuRn))
+names(ChenDtuBenchmark_DEXSeq) <- paste0('DEXSeq_', names(ChenDtuBenchmark_DEXSeq))
+names(ChenDtuBenchmark_edgeRdiffsplice) <- paste0('edgeR_diffsplice', names(ChenDtuBenchmark_edgeRdiffsplice))
+names(ChenDtuBenchmark_edgeR_offset) <- paste0('edgeR_offset_', names(ChenDtuBenchmark_edgeR_offset))
+names(ChenDtuBenchmark_DESeq2_offset) <- paste0('DESeq2_offset_', names(ChenDtuBenchmark_DESeq2_offset))
+
+### Save result
+#load("./Data/Chen_DTU_results_count.Rdata")
+save(ChenDtuBenchmark_satuRn,
+     ChenDtuBenchmark_DEXSeq,
+     ChenDtuBenchmark_edgeRdiffsplice,
+     ChenDtuBenchmark_edgeR_offset,
+     ChenDtuBenchmark_DESeq2_offset,
+     file="./Data/Chen_DTU_results_count_new.Rdata")
+```
+
+
+

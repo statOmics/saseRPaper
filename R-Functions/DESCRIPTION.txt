@@ -1,0 +1,56 @@
+Package: fRUVMD
+Type: Package
+Title: Fast detection of aberrant expression for mendelian disorders
+Date: 2022-12-05
+Version: 0.0.1
+Authors@R: c(person("Alexandre", "Segers", role = c("aut","cre"),
+                     email = "alexandre.segers@ugent.be"),
+	     person("Lieven","Clement", role="ctb",
+		     email = "Lieven.Clement@ugent.be"))
+Description: satuRn provides a higly performant and scalable framework for performing
+    differential transcript usage analyses. The package consists of three main functions.
+    The first function, fitDTU, fits quasi-binomial generalized linear models that model
+    transcript usage in different groups of interest. The second function, testDTU, tests    
+    for differential usage of transcripts between groups of interest. Finally, plotDTU  
+    visualizes the usage profiles of transcripts in groups of interest. 111
+Depends: R (>= 4.1)
+Imports: locfdr,
+	 SummarizedExperiment,
+	 BiocParallel,
+	 limma,
+	 PRROC,
+	 data.table,
+	 edgeR,
+	 pracma,
+	 DESeq2
+Suggests:
+    knitr,
+    rmarkdown,
+    testthat,
+    covr,
+    BiocStyle,
+    AnnotationHub,
+    ensembldb,
+    DEXSeq,
+    DelayedArray
+VignetteBuilder: knitr
+Collate: 'fitRUVMD.R' 'InjectOutliers.R' 'Accessors.R'
+License: Artistic-2.0
+URL: https://github.com/statOmics/fRUVMD
+BugReports: https://github.com/statOmics/fRUVMD/issues
+Encoding: UTF-8
+LazyData: false
+RoxygenNote: 7.2.0
+biocViews:
+    Regression,
+    ExperimentalDesign,
+    DifferentialExpression,
+    AberrantExpression,
+	GeneExpression,
+	IntronRetention,
+    RNASeq,
+    Sequencing,
+    Software,
+    Transcriptomics,
+    OutlierDetection,
+    MendelianDisorders

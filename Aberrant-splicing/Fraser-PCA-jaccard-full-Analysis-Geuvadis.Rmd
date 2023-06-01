@@ -1,0 +1,127 @@
+---
+title: "Untitled"
+author: "Alex"
+date: "2/16/2023"
+output: html_document
+---
+
+```{r}
+library(FRASER)
+library(data.table)
+set.seed(100)
+
+```
+
+```{r, import arguments}
+args <- (commandArgs(trailingOnly = TRUE))
+for (i in 1:length(args)) {
+  eval(parse(text = args[[i]]))
+}
+
+```
+
+```{r, show arguments}
+print(data_directory)
+print(output_directory)
+
+
+```
+
+```{r}
+
+fds <- loadFraserDataSet(dir = paste0(data_directory,
+                "/Geuvadis/Fraser"),
+                         name = "counts_original_unfiltered")
+saveFraserDataSet(fds = fds, dir = paste0(data_directory,
+                "/Geuvadis/Fraser"),
+                         name = "Geuvadis_Fraser_PCA_jaccard_filtered_counts")
+fds <- loadFraserDataSet(dir = paste0(data_directory,
+                "/Geuvadis/Fraser"),
+                         name = "Geuvadis_Fraser_PCA_jaccard_filtered_counts")
+
+```
+
+
+```{r}
+start_time <- Sys.time()
+fds <- calculatePSIValues(fds, BPPARAM = MulticoreParam(1), types ="jaccard")
+fds <- filterExpressionAndVariability(fds, BPPARAM = MulticoreParam(1))
+
+fds <- fds[mcols(fds,type ="j")[,"passed"],]
+
+end_filtering_time <- Sys.time()
+
+
+time_filtering <- end_filtering_time - start_time
+
+
+saveRDS(object = time_filtering, 
+        file = paste0(output_directory,"/Time_filtering_Fraser_PCA_Jaccard.RDS"))
+
+saveFraserDataSet(fds = fds, 
+                  dir = paste0(data_directory,"/Geuvadis/Fraser"),
+                         name = "Geuvadis_Fraser_PCA_jaccard_filtered_counts")
+
+
+```
+
+
+```{r}
+start_time_hyperparameter_optimalisation <- Sys.time()
+set.seed(100)
+
+fds <- optimHyperParams(fds, type = "jaccard", plot = F, q_param = seq(2,11,1), BPPARAM = MulticoreParam(1))
+
+end_time_hyperparameter_optimalisation <- Sys.time()
+
+time_hyperparameter_optimalisation <- end_time_hyperparameter_optimalisation - start_time_hyperparameter_optimalisation
+
+saveRDS(object = time_hyperparameter_optimalisation, 
+        file = paste0(output_directory,"/Time_hyperparameter_optimalisation_Fraser_PCA_Jaccard.RDS"))
+
+saveFraserDataSet(fds = fds, 
+                  dir = 
+                paste0(output_directory,"/Fraser"),
+                  name = "Geuvadis_optimal_hyperparameters_Jaccard")
+
+```
+
+
+
+
+```{r}
+
+start_time_analysis <- Sys.time()
+
+fds <- fit(fds,
+           type = c("jaccard"),
+           q = bestQ(fds, type = "jaccard"),
+              implementation = "PCA",
+              BPPARAM = MulticoreParam(1))
+
+
+fds <- calculatePvalues(fds = fds,
+                        type = c("jaccard"),
+                        implementation = "PCA",
+                        BPPARAM = MulticoreParam(1))
+
+
+
+
+
+end_time <- Sys.time()
+
+time_analysis <- end_time - start_time_analysis
+time_total <- end_time-start_time
+
+saveRDS(object = time_analysis, 
+        file = paste0(output_directory,"/Time_analysis_Fraser_PCA_Jaccard.RDS"))
+
+saveRDS(object = time_total, 
+        file = paste0(output_directory,"/Time_Fraser_PCA_total_Jaccard.RDS"))
+
+saveFraserDataSet(fds = fds, 
+          dir = paste0(output_directory,"/Fraser"),
+                  name = "Geuvadis_PCA_results_Jaccard")
+```
+

@@ -1,0 +1,96 @@
+---
+title: "RUV_analysis_script"
+author: "Alex"
+date: "9/22/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, libraries}
+library(lubridate)
+library(BiocParallel)
+library(BiocGenerics)
+library(S4Vectors)
+library(edgeR)
+library(MASS)
+library(pracma)
+library(SummarizedExperiment)
+library(precrec)
+library(PRROC)
+library(BiocGenerics)
+library(limma)
+library(data.table)
+library(DESeq2)
+```
+
+```{r, import arguments}
+args <- (commandArgs(trailingOnly = TRUE))
+for (i in 1:length(args)) {
+  eval(parse(text = args[[i]]))
+}
+
+```
+
+```{r, show arguments}
+print(data_directory)
+print(function_directory)
+print(output_directory)
+print(number_of_genes)
+print(cores)
+
+```
+
+
+
+```{r, import functions}
+
+source(paste0(function_directory,"/fitRUVMD.R"))
+source(paste0(function_directory,"/Accessors.R"))
+source(paste0(function_directory,"/InjectOutliers.R"))
+
+
+```
+
+```{r, reading data}
+se <- readRDS(file = data_directory)
+metadata(se)$design <- ~1
+
+```
+
+```{r, analysis}
+
+set.seed(100)
+genes_used <- sample(c(1:dim(se)[1]), size = dim(se)[1], replace = F)
+
+time_usage <- vector(length = length(c(number_of_genes)))
+names(time_usage) <- c(number_of_genes)
+
+
+for(i in c(1:length(c(number_of_genes)))){
+  start_time <- Sys.time()
+
+  se_loop <- fitRUVMD(se[genes_used[1:number_of_genes[i]],],
+                                          dimensions = 50,
+                                          BPPARAM = cores)
+  
+  end_time <- Sys.time()
+  time_difference <- seconds(end_time) - seconds(start_time)
+  
+  time_usage[i] <- time_difference
+  
+}
+
+
+```
+
+
+```{r,save results}
+saveRDS(object = time_usage, file = output_directory)
+
+```
+
+
+

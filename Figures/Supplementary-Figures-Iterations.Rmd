@@ -1,0 +1,450 @@
+---
+title: "Untitled"
+author: "Alex"
+date: "3/9/2023"
+output: html_document
+---
+
+
+```{r}
+library(FRASER)
+library(data.table)
+library(ggplot2)
+library(precrec)
+library(GenomicFeatures)
+library(dplyr)
+library(patchwork)
+library(ggpubr)
+library(cowplot)
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, import arguments}
+args <- (commandArgs(trailingOnly = TRUE))
+for (i in 1:length(args)) {
+  eval(parse(text = args[[i]]))
+}
+
+```
+
+```{r}
+print(data_directory)
+print(output_directory)
+print(annotation_directory)
+print(geuvadis_directory)
+
+
+```
+
+
+
+
+```{r}
+ASpli_counts <- readRDS(file = paste0(geuvadis_directory, "/ASpli-counts.RDS"))
+
+fRUV_bins_0 <- readRDS(file = paste0(data_directory, "/seFit_fRUV_no_iter_bins_Geuvadis.RDS"))
+fRUV_junctions_0 <- readRDS(file = paste0(data_directory, "/seFit_fRUV_no_iter_junctions_Geuvadis.RDS"))
+fRUV_junctions_genes_0 <- readRDS(file = paste0(data_directory, "/seFit_fRUV_no_iter_junctions_gene_Geuvadis.RDS"))
+
+fRUV_bins_1 <- readRDS(file = paste0(data_directory, "/seFit_fRUV_1_iter_bins_Geuvadis.RDS"))
+fRUV_junctions_1 <- readRDS(file = paste0(data_directory, "/seFit_fRUV_1_iter_junctions_Geuvadis.RDS"))
+fRUV_junctions_genes_1 <- readRDS(file = paste0(data_directory, "/seFit_fRUV_1_iter_junctions_gene_Geuvadis.RDS"))
+
+fRUV_bins_3 <- readRDS(file = paste0(data_directory, "/seFit_fRUV_3_iter_bins_Geuvadis.RDS"))
+fRUV_junctions_3 <- readRDS(file = paste0(data_directory, "/seFit_fRUV_3_iter_junctions_Geuvadis.RDS"))
+fRUV_junctions_genes_3 <- readRDS(file = paste0(data_directory, "/seFit_fRUV_3_iter_junctions_gene_Geuvadis.RDS"))
+
+fRUV_bins_50 <- readRDS(file = paste0(data_directory, "/seFit_fRUV_bins_Geuvadis.RDS"))
+fRUV_junctions_50 <- readRDS(file = paste0(data_directory, "/seFit_fRUV_junctions_Geuvadis.RDS"))
+fRUV_junctions_genes_50 <- readRDS(file = paste0(data_directory, "/seFit_fRUV_junctions_gene_Geuvadis.RDS"))
+
+fRUV_bins_edgeR <- readRDS(file = paste0(data_directory, "/seFit_fRUV_edgeR_bins_Geuvadis.RDS"))
+fRUV_junctions_edgeR <- readRDS(file = paste0(data_directory, "/seFit_fRUV_edgeR_junctions_Geuvadis.RDS"))
+fRUV_junctions_genes_edgeR <- readRDS(file = paste0(data_directory, "/seFit_fRUV_edgeR_junctions_gene_Geuvadis.RDS"))
+```
+
+```{r}
+outliers <- readRDS(
+  file = paste0(data_directory, "/Geuvadis_outlier_genes.RDS"))
+unique_outliers <- outliers[!duplicated(rownames(outliers)),]
+
+```
+
+```{r}
+fRUV_junctions_annotation <- ASpli_counts@metadata$junctionCounts$gene
+names(fRUV_junctions_annotation) <- rownames(ASpli_counts@metadata$junctionCounts)
+fRUV_junctions_annotation <- fRUV_junctions_annotation[names(fRUV_junctions_50) %in% rownames(fRUV_junctions_50)]
+```
+
+
+
+```{r}
+pvalues_fRUV_bins_0 <- assays(fRUV_bins_0)$pValue
+pvalues_fRUV_junctions_0 <- assays(fRUV_junctions_0)$pValue
+pvalues_fRUV_junctions_genes_0 <- assays(fRUV_junctions_genes_0)$pValue
+
+pvalues_fRUV_bins_1 <- assays(fRUV_bins_1)$pValue
+pvalues_fRUV_junctions_1 <- assays(fRUV_junctions_1)$pValue
+pvalues_fRUV_junctions_genes_1 <- assays(fRUV_junctions_genes_1)$pValue
+
+pvalues_fRUV_bins_3 <- assays(fRUV_bins_3)$pValue
+pvalues_fRUV_junctions_3 <- assays(fRUV_junctions_3)$pValue
+pvalues_fRUV_junctions_genes_3 <- assays(fRUV_junctions_genes_3)$pValue
+
+pvalues_fRUV_bins_50 <- assays(fRUV_bins_50)$pValue
+pvalues_fRUV_junctions_50 <- assays(fRUV_junctions_50)$pValue
+pvalues_fRUV_junctions_genes_50 <- assays(fRUV_junctions_genes_50)$pValue
+
+pvalues_fRUV_bins_edgeR <- assays(fRUV_bins_edgeR)$pValue
+pvalues_fRUV_junctions_edgeR <- assays(fRUV_junctions_edgeR)$pValue
+pvalues_fRUV_junctions_genes_edgeR <- assays(fRUV_junctions_genes_edgeR)$pValue
+
+```
+
+
+```{r}
+df_fRUV_bins_0 <- as.data.frame(pvalues_fRUV_bins_0)
+df_fRUV_bins_0$gene <- rowData(fRUV_bins_0)$locus
+gene_pvalues_fRUV_bins_0 <- df_fRUV_bins_0 %>% group_by(gene) %>% summarise(across(paste0("Sample",c(1:39)),min))
+
+order <- match(rownames(fRUV_junctions_0),names(fRUV_junctions_annotation))
+rowData(fRUV_junctions_0)$gene <- fRUV_junctions_annotation[order]
+
+df_fRUV_junctions_0 <- as.data.frame(pvalues_fRUV_junctions_0)
+df_fRUV_junctions_0$gene <- rowData(fRUV_junctions_0)$gene
+gene_pvalues_fRUV_junctions_0 <- df_fRUV_junctions_0 %>% group_by(gene) %>% summarise(across(paste0("Sample",c(1:39)),min))
+
+df_fRUV_junctions_genes_0 <- as.data.frame(pvalues_fRUV_junctions_genes_0)
+df_fRUV_junctions_genes_0$gene <- rowData(fRUV_junctions_genes_0)$locus
+gene_pvalues_fRUV_junctions_genes_0 <- df_fRUV_junctions_genes_0 %>% group_by(gene) %>% summarise(across(paste0("Sample",c(1:39)),min))
+
+
+
+df_fRUV_bins_1 <- as.data.frame(pvalues_fRUV_bins_1)
+df_fRUV_bins_1$gene <- rowData(fRUV_bins_1)$locus
+gene_pvalues_fRUV_bins_1 <- df_fRUV_bins_1 %>% group_by(gene) %>% summarise(across(paste0("Sample",c(1:39)),min))
+
+order <- match(rownames(fRUV_junctions_1),names(fRUV_junctions_annotation))
+rowData(fRUV_junctions_1)$gene <- fRUV_junctions_annotation[order]
+
+df_fRUV_junctions_1 <- as.data.frame(pvalues_fRUV_junctions_1)
+df_fRUV_junctions_1$gene <- rowData(fRUV_junctions_1)$gene
+gene_pvalues_fRUV_junctions_1 <- df_fRUV_junctions_1 %>% group_by(gene) %>% summarise(across(paste0("Sample",c(1:39)),min))
+
+df_fRUV_junctions_genes_1 <- as.data.frame(pvalues_fRUV_junctions_genes_1)
+df_fRUV_junctions_genes_1$gene <- rowData(fRUV_junctions_genes_1)$locus
+gene_pvalues_fRUV_junctions_genes_1 <- df_fRUV_junctions_genes_1 %>% group_by(gene) %>% summarise(across(paste0("Sample",c(1:39)),min))
+
+
+
+df_fRUV_bins_3 <- as.data.frame(pvalues_fRUV_bins_3)
+df_fRUV_bins_3$gene <- rowData(fRUV_bins_3)$locus
+gene_pvalues_fRUV_bins_3 <- df_fRUV_bins_3 %>% group_by(gene) %>% summarise(across(paste0("Sample",c(1:39)),min))
+
+order <- match(rownames(fRUV_junctions_3),names(fRUV_junctions_annotation))
+rowData(fRUV_junctions_3)$gene <- fRUV_junctions_annotation[order]
+
+df_fRUV_junctions_3 <- as.data.frame(pvalues_fRUV_junctions_3)
+df_fRUV_junctions_3$gene <- rowData(fRUV_junctions_3)$gene
+gene_pvalues_fRUV_junctions_3 <- df_fRUV_junctions_3 %>% group_by(gene) %>% summarise(across(paste0("Sample",c(1:39)),min))
+
+df_fRUV_junctions_genes_3 <- as.data.frame(pvalues_fRUV_junctions_genes_3)
+df_fRUV_junctions_genes_3$gene <- rowData(fRUV_junctions_genes_3)$locus
+gene_pvalues_fRUV_junctions_genes_3 <- df_fRUV_junctions_genes_3 %>% group_by(gene) %>% summarise(across(paste0("Sample",c(1:39)),min))
+
+
+df_fRUV_bins_50 <- as.data.frame(pvalues_fRUV_bins_50)
+df_fRUV_bins_50$gene <- rowData(fRUV_bins_50)$locus
+gene_pvalues_fRUV_bins_50 <- df_fRUV_bins_50 %>% group_by(gene) %>% summarise(across(paste0("Sample",c(1:39)),min))
+
+order <- match(rownames(fRUV_junctions_50),names(fRUV_junctions_annotation))
+rowData(fRUV_junctions_50)$gene <- fRUV_junctions_annotation[order]
+
+df_fRUV_junctions_50 <- as.data.frame(pvalues_fRUV_junctions_50)
+df_fRUV_junctions_50$gene <- rowData(fRUV_junctions_50)$gene
+gene_pvalues_fRUV_junctions_50 <- df_fRUV_junctions_50 %>% group_by(gene) %>% summarise(across(paste0("Sample",c(1:39)),min))
+
+df_fRUV_junctions_genes_50 <- as.data.frame(pvalues_fRUV_junctions_genes_50)
+df_fRUV_junctions_genes_50$gene <- rowData(fRUV_junctions_genes_50)$locus
+gene_pvalues_fRUV_junctions_genes_50 <- df_fRUV_junctions_genes_50 %>% group_by(gene) %>% summarise(across(paste0("Sample",c(1:39)),min))
+
+
+
+df_fRUV_bins_edgeR <- as.data.frame(pvalues_fRUV_bins_edgeR)
+df_fRUV_bins_edgeR$gene <- rowData(fRUV_bins_edgeR)$locus
+gene_pvalues_fRUV_bins_edgeR <- df_fRUV_bins_edgeR %>% group_by(gene) %>% summarise(across(paste0("Sample",c(1:39)),min))
+
+order <- match(rownames(fRUV_junctions_edgeR),names(fRUV_junctions_annotation))
+rowData(fRUV_junctions_edgeR)$gene <- fRUV_junctions_annotation[order]
+
+df_fRUV_junctions_edgeR <- as.data.frame(pvalues_fRUV_junctions_edgeR)
+df_fRUV_junctions_edgeR$gene <- rowData(fRUV_junctions_edgeR)$gene
+gene_pvalues_fRUV_junctions_edgeR <- df_fRUV_junctions_edgeR %>% group_by(gene) %>% summarise(across(paste0("Sample",c(1:39)),min))
+
+df_fRUV_junctions_genes_edgeR <- as.data.frame(pvalues_fRUV_junctions_genes_edgeR)
+df_fRUV_junctions_genes_edgeR$gene <- rowData(fRUV_junctions_genes_edgeR)$locus
+gene_pvalues_fRUV_junctions_genes_edgeR <- df_fRUV_junctions_genes_edgeR %>% group_by(gene) %>%
+  summarise(across(paste0("Sample",c(1:39)),min))
+
+
+
+```
+
+
+
+```{r}
+unique_outliers_fRUV_bins <- unique_outliers[rownames(unique_outliers)%in% gene_pvalues_fRUV_bins_50$gene,]
+
+unique_outliers_fRUV_junctions <- unique_outliers[rownames(unique_outliers)%in%
+                                                    gene_pvalues_fRUV_junctions_50$gene,]
+
+unique_outliers_fRUV_junctions_genes <- unique_outliers[rownames(unique_outliers)%in%
+                                                          gene_pvalues_fRUV_junctions_genes_50$gene,]
+
+
+
+unique_outliers_fRUV_bins_removed <- unique_outliers[!(rownames(unique_outliers)%in%
+                                                         gene_pvalues_fRUV_bins_50$gene),]
+
+unique_outliers_fRUV_junctions_removed <- unique_outliers[!(rownames(unique_outliers)%in%
+                                                              gene_pvalues_fRUV_junctions_50$gene),]
+
+unique_outliers_fRUV_junctions_genes_removed <- unique_outliers[!(rownames(unique_outliers)%in%
+                                                              gene_pvalues_fRUV_junctions_genes_50$gene),]
+```
+
+```{r}
+order <- match(gene_pvalues_fRUV_bins_50$gene, rownames(unique_outliers_fRUV_bins))
+gene_pvalues_fRUV_bins_0 <- gene_pvalues_fRUV_bins_0[order, -c(1)]
+gene_pvalues_fRUV_bins_1 <- gene_pvalues_fRUV_bins_1[order, -c(1)]
+gene_pvalues_fRUV_bins_3 <- gene_pvalues_fRUV_bins_3[order, -c(1)]
+gene_pvalues_fRUV_bins_50 <- gene_pvalues_fRUV_bins_50[order, -c(1)]
+gene_pvalues_fRUV_bins_edgeR <- gene_pvalues_fRUV_bins_edgeR[order, -c(1)]
+
+
+order <- match(gene_pvalues_fRUV_junctions_50$gene, rownames(unique_outliers_fRUV_junctions))
+gene_pvalues_fRUV_junctions_0 <- gene_pvalues_fRUV_junctions_0[order, -c(1)]
+gene_pvalues_fRUV_junctions_1 <- gene_pvalues_fRUV_junctions_1[order, -c(1)]
+gene_pvalues_fRUV_junctions_3 <- gene_pvalues_fRUV_junctions_3[order, -c(1)]
+gene_pvalues_fRUV_junctions_50 <- gene_pvalues_fRUV_junctions_50[order, -c(1)]
+gene_pvalues_fRUV_junctions_edgeR <- gene_pvalues_fRUV_junctions_edgeR[order, -c(1)]
+
+
+order <- match(gene_pvalues_fRUV_junctions_genes_50$gene, rownames(unique_outliers_fRUV_junctions_genes))
+gene_pvalues_fRUV_junctions_genes_0 <- gene_pvalues_fRUV_junctions_genes_0[order, -c(1)]
+gene_pvalues_fRUV_junctions_genes_1 <- gene_pvalues_fRUV_junctions_genes_1[order, -c(1)]
+gene_pvalues_fRUV_junctions_genes_3 <- gene_pvalues_fRUV_junctions_genes_3[order, -c(1)]
+gene_pvalues_fRUV_junctions_genes_50 <- gene_pvalues_fRUV_junctions_genes_50[order, -c(1)]
+gene_pvalues_fRUV_junctions_genes_edgeR <- gene_pvalues_fRUV_junctions_genes_edgeR[order, -c(1)]
+
+```
+
+```{r}
+unique_outliers_fRUV_bins <- rbind(unique_outliers_fRUV_bins, 
+                              unique_outliers_fRUV_bins_removed[rowSums(unique_outliers_fRUV_bins_removed) > 0,])
+
+unique_outliers_fRUV_junctions <- rbind(unique_outliers_fRUV_junctions, 
+                    unique_outliers_fRUV_junctions_removed[rowSums(unique_outliers_fRUV_junctions_removed) > 0,])
+
+unique_outliers_fRUV_junctions_genes <- rbind(unique_outliers_fRUV_junctions_genes, 
+         unique_outliers_fRUV_junctions_genes_removed[rowSums(unique_outliers_fRUV_junctions_genes_removed) > 0,])
+
+
+
+gene_pvalues_fRUV_bins_0 <- rbind(as.matrix(gene_pvalues_fRUV_bins_0), 
+                                matrix(1, 
+                                       ncol = ncol(gene_pvalues_fRUV_bins_0), 
+                                       nrow = sum(rowSums(unique_outliers_fRUV_bins_removed) > 0)))
+
+gene_pvalues_fRUV_bins_1 <- rbind(as.matrix(gene_pvalues_fRUV_bins_1), 
+                                matrix(1, 
+                                       ncol = ncol(gene_pvalues_fRUV_bins_1), 
+                                       nrow = sum(rowSums(unique_outliers_fRUV_bins_removed) > 0)))
+
+gene_pvalues_fRUV_bins_3 <- rbind(as.matrix(gene_pvalues_fRUV_bins_3), 
+                                matrix(1, 
+                                       ncol = ncol(gene_pvalues_fRUV_bins_3), 
+                                       nrow = sum(rowSums(unique_outliers_fRUV_bins_removed) > 0)))
+
+gene_pvalues_fRUV_bins_50 <- rbind(as.matrix(gene_pvalues_fRUV_bins_50), 
+                                matrix(1, 
+                                       ncol = ncol(gene_pvalues_fRUV_bins_50), 
+                                       nrow = sum(rowSums(unique_outliers_fRUV_bins_removed) > 0)))
+
+gene_pvalues_fRUV_bins_edgeR <- rbind(as.matrix(gene_pvalues_fRUV_bins_edgeR), 
+                                matrix(1, 
+                                       ncol = ncol(gene_pvalues_fRUV_bins_edgeR), 
+                                       nrow = sum(rowSums(unique_outliers_fRUV_bins_removed) > 0)))
+
+
+
+gene_pvalues_fRUV_junctions_0 <- rbind(as.matrix(gene_pvalues_fRUV_junctions_0), 
+                                matrix(1, 
+                                       ncol = ncol(gene_pvalues_fRUV_junctions_0), 
+                                       nrow = sum(rowSums(unique_outliers_fRUV_junctions_removed) > 0)))
+
+gene_pvalues_fRUV_junctions_1 <- rbind(as.matrix(gene_pvalues_fRUV_junctions_1), 
+                                matrix(1, 
+                                       ncol = ncol(gene_pvalues_fRUV_junctions_1), 
+                                       nrow = sum(rowSums(unique_outliers_fRUV_junctions_removed) > 0)))
+
+gene_pvalues_fRUV_junctions_3 <- rbind(as.matrix(gene_pvalues_fRUV_junctions_3), 
+                                matrix(1, 
+                                       ncol = ncol(gene_pvalues_fRUV_junctions_3), 
+                                       nrow = sum(rowSums(unique_outliers_fRUV_junctions_removed) > 0)))
+
+gene_pvalues_fRUV_junctions_50 <- rbind(as.matrix(gene_pvalues_fRUV_junctions_50), 
+                                matrix(1, 
+                                       ncol = ncol(gene_pvalues_fRUV_junctions_50), 
+                                       nrow = sum(rowSums(unique_outliers_fRUV_junctions_removed) > 0)))
+
+gene_pvalues_fRUV_junctions_edgeR <- rbind(as.matrix(gene_pvalues_fRUV_junctions_edgeR), 
+                                matrix(1, 
+                                       ncol = ncol(gene_pvalues_fRUV_junctions_edgeR), 
+                                       nrow = sum(rowSums(unique_outliers_fRUV_junctions_removed) > 0)))
+
+
+
+gene_pvalues_fRUV_junctions_genes_0 <- rbind(as.matrix(gene_pvalues_fRUV_junctions_genes_0), 
+                                matrix(1, 
+                                       ncol = ncol(gene_pvalues_fRUV_junctions_genes_0), 
+                                       nrow = sum(rowSums(unique_outliers_fRUV_junctions_genes_removed) > 0)))
+
+gene_pvalues_fRUV_junctions_genes_1 <- rbind(as.matrix(gene_pvalues_fRUV_junctions_genes_1), 
+                                matrix(1, 
+                                       ncol = ncol(gene_pvalues_fRUV_junctions_genes_1), 
+                                       nrow = sum(rowSums(unique_outliers_fRUV_junctions_genes_removed) > 0)))
+
+gene_pvalues_fRUV_junctions_genes_3 <- rbind(as.matrix(gene_pvalues_fRUV_junctions_genes_3), 
+                                matrix(1, 
+                                       ncol = ncol(gene_pvalues_fRUV_junctions_genes_3), 
+                                       nrow = sum(rowSums(unique_outliers_fRUV_junctions_genes_removed) > 0)))
+
+gene_pvalues_fRUV_junctions_genes_50 <- rbind(as.matrix(gene_pvalues_fRUV_junctions_genes_50), 
+                                matrix(1, 
+                                       ncol = ncol(gene_pvalues_fRUV_junctions_genes_50), 
+                                       nrow = sum(rowSums(unique_outliers_fRUV_junctions_genes_removed) > 0)))
+
+gene_pvalues_fRUV_junctions_genes_edgeR <- rbind(as.matrix(gene_pvalues_fRUV_junctions_genes_edgeR), 
+                                matrix(1, 
+                                       ncol = ncol(gene_pvalues_fRUV_junctions_genes_edgeR), 
+                                       nrow = sum(rowSums(unique_outliers_fRUV_junctions_genes_removed) > 0)))
+
+```
+
+
+
+
+```{r}
+
+scores <- join_scores(-c(unlist(gene_pvalues_fRUV_bins_0)), 
+                      -c(unlist(gene_pvalues_fRUV_bins_1)), 
+                      -c(unlist(gene_pvalues_fRUV_bins_3)), 
+                      -c(unlist(gene_pvalues_fRUV_bins_50)), 
+                      -c(unlist(gene_pvalues_fRUV_bins_edgeR)),
+                      chklen = F)
+
+labels <- join_labels(c(unlist(unique_outliers_fRUV_bins)),
+                      c(unlist(unique_outliers_fRUV_bins)),
+                      c(unlist(unique_outliers_fRUV_bins)),
+                      c(unlist(unique_outliers_fRUV_bins)),
+                      c(unlist(unique_outliers_fRUV_bins)),
+                      chklen = F)
+
+msmdat_simulation <- mmdata(scores,
+                            labels,
+                            modnames =
+                              c("OLS",
+                                "1 iteration",
+                                "3 iterations",
+                                "50 iterations",
+                                "edgeR"),
+                            dsids = c(1:5))
+mscurves_simulation <- evalmod(msmdat_simulation)
+df_1 <- data.frame(mscurves_simulation)
+
+
+scores <- join_scores(-c(unlist(gene_pvalues_fRUV_junctions_0)), 
+                      -c(unlist(gene_pvalues_fRUV_junctions_1)), 
+                      -c(unlist(gene_pvalues_fRUV_junctions_3)), 
+                      -c(unlist(gene_pvalues_fRUV_junctions_50)), 
+                      -c(unlist(gene_pvalues_fRUV_junctions_edgeR)),
+                      chklen = F)
+
+labels <- join_labels(c(unlist(unique_outliers_fRUV_junctions)),
+                      c(unlist(unique_outliers_fRUV_junctions)),
+                      c(unlist(unique_outliers_fRUV_junctions)),
+                      c(unlist(unique_outliers_fRUV_junctions)),
+                      c(unlist(unique_outliers_fRUV_junctions)),
+                      chklen = F)
+
+msmdat_simulation <- mmdata(scores,
+                            labels,
+                            modnames =
+                              c("OLS",
+                                "1 iteration",
+                                "3 iterations",
+                                "50 iterations",
+                                "edgeR"),
+                            dsids = c(1:5))
+mscurves_simulation <- evalmod(msmdat_simulation)
+df_2 <- data.frame(mscurves_simulation)
+
+scores <- join_scores(-c(unlist(gene_pvalues_fRUV_junctions_genes_0)), 
+                      -c(unlist(gene_pvalues_fRUV_junctions_genes_1)), 
+                      -c(unlist(gene_pvalues_fRUV_junctions_genes_3)), 
+                      -c(unlist(gene_pvalues_fRUV_junctions_genes_50)), 
+                      -c(unlist(gene_pvalues_fRUV_junctions_genes_edgeR)),
+                      chklen = F)
+
+labels <- join_labels(c(unlist(unique_outliers_fRUV_junctions_genes)),
+                      c(unlist(unique_outliers_fRUV_junctions_genes)),
+                      c(unlist(unique_outliers_fRUV_junctions_genes)),
+                      c(unlist(unique_outliers_fRUV_junctions_genes)),
+                      c(unlist(unique_outliers_fRUV_junctions_genes)),
+                      chklen = F)
+
+msmdat_simulation <- mmdata(scores,
+                            labels,
+                            modnames =
+                              c("OLS",
+                                "1 iteration",
+                                "3 iterations",
+                                "50 iterations",
+                                "edgeR"),
+                            dsids = c(1:5))
+mscurves_simulation <- evalmod(msmdat_simulation)
+df_3 <- data.frame(mscurves_simulation)
+
+```
+
+```{r}
+df_merged <- rbind(df_1,df_2,df_3)
+df_merged$method <- rep(c("saseR bins","saseR ASpli junctions", "saseR junctions"), each = 10030)
+df_merged$method <- factor(df_merged$method, levels = c("saseR bins", "saseR junctions", "saseR ASpli junctions"))
+```
+
+
+```{r}
+plot <- ggplot(data = df_merged%>% filter(type == "PRC"), aes(x = x, y = y, col = modname)) + geom_line() + ggtitle(label = "") + ylab("Precision")  + xlab("Recall") + theme_bw() + 
+  theme(axis.text=element_text(size=10), axis.title=element_text(size=12))  + scale_color_manual(values = c("OLS" = "#E69F00", "1 iteration" = "#D55E00", "3 iterations"="#CC79A7", "50 iterations"= "#009E73", "edgeR" = "#000000"))+ 
+  theme( legend.title = element_blank(),legend.position = "bottom", 
+         legend.text = element_text(size = 12), strip.text = element_text(size=14) ) + facet_wrap(~method)
+plot
+
+
+```
+
+```{r}
+ggsave(paste0(output_directory,"/Supplementary-Figure-14.png"), plot, 
+       device = "png", width = 9, height = 4.5, dpi = 300)
+ggsave(paste0(output_directory,"/Supplementary-Figure-14.eps"), plot, 
+       device = cairo_ps, width = 9, height = 4.5, dpi = 300)
+ggsave(paste0(output_directory,"/Supplementary-Figure-14.pdf"), plot, 
+       device = "pdf", width = 9, height = 4.5, dpi = 300)
+```
+

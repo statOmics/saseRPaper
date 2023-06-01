@@ -1,0 +1,105 @@
+---
+atitle: "Untitled"
+author: "Alex"
+date: "4/7/2023"
+output: html_document
+---
+
+```{r}
+library(FRASER)
+library(data.table)
+library(TxDb.Hsapiens.UCSC.hg19.knownGene)
+```
+
+
+```{r, import arguments}
+args <- (commandArgs(trailingOnly = TRUE))
+for (i in 1:length(args)) {
+  eval(parse(text = args[[i]]))
+}
+
+```
+
+```{r}
+print(data_directory)
+```
+
+
+```{r}
+#adapted from FRASER:::extractSpliceSiteCoordinates
+
+extractSpliceSiteCoordinates <- function (junctions, strandspecific = F) 
+{
+    if (strandspecific >= 1L) {
+        spliceSiteCoords <- unlist(GRangesList(FRASER:::extractSpliceSiteCoordsPerStrand(junctions, 
+            "+"), FRASER:::extractSpliceSiteCoordsPerStrand(junctions, 
+            "-")))
+    }
+    else {
+        strand(junctions) <- "*"
+        spliceSiteCoords <- FRASER:::extractSpliceSiteCoordsPerStrand(junctions, 
+            "*")
+    }
+    return(unique(sort(spliceSiteCoords)))
+}
+```
+
+
+```{r}
+sampleTable <- fread(paste0(data_directory, 
+                            "/Kremer/kremer--hg19--gencode34/sampleAnnotation.tsv"))
+jcounts <- fread(paste0(data_directory, 
+                        "/Kremer/kremer--hg19--gencode34/k_j_counts.tsv.gz"))
+nonsplitreads <- fread(paste0(data_directory,
+                              "/Kremer/kremer--hg19--gencode34/k_theta_counts.tsv.gz"))
+
+
+
+
+gr_jcounts <- FRASER:::annotateSpliceSite(GRanges(jcounts))
+splicesites <- extractSpliceSiteCoordinates(gr_jcounts,strandspecific = F)
+
+gr_nonsplit_reads <- GRanges(nonsplitreads)
+gr_nonsplit_reads$spliceSiteID <- splicesites$spliceSiteID[match(gr_nonsplit_reads@ranges,splicesites@ranges, 
+                                                                 nomatch = 0)]
+gr_nonsplit_reads$type <- splicesites$type[match(gr_nonsplit_reads@ranges,splicesites@ranges, nomatch = 0)]
+gr_nonsplit_reads <- gr_nonsplit_reads[!duplicated(gr_nonsplit_reads$spliceSiteID,fromLast=T),]
+
+sampleTable$sampleID <- sampleTable$RNA_ID
+sampleTable <- sampleTable[match(colnames(jcounts),sampleTable$sampleID, nomatch = 0)]
+sampleTable$sampleID[1:33] <- paste0("X",sampleTable$sampleID[1:33])
+
+
+fds <- FraserDataSet(colData=sampleTable, 
+                     junctions = as.data.frame(gr_jcounts),
+                     spliceSites=as.data.frame(gr_nonsplit_reads))
+```
+
+
+
+```{r}
+fds <- calculatePSIValues(fds, types = "jaccard", BPPARAM = MulticoreParam(5))
+fds <- filterExpressionAndVariability(fds, BPPARAM = MulticoreParam(5), filter = TRUE)
+
+```
+
+```{r}
+set.seed(100)
+fds <- injectOutliers(fds, 
+                               type = c("jaccard"), 
+                               freq = 0.001, 
+                               minDpsi = 0.2,
+                               minCoverage = 2,
+                               deltaDistr = "uniformDistr",
+                               BPPARAM = MulticoreParam(5))
+
+fds <- annotateRangesWithTxDb(fds, txdb = TxDb.Hsapiens.UCSC.hg19.knownGene)
+
+saveFraserDataSet(fds = fds, dir = 
+                      paste0(data_directory, 
+                               "/Kremer/Fraser"), 
+                  name = "Outliers_injection_jaccard")
+
+```
+
+

@@ -1,0 +1,244 @@
+---
+title: "RUV_figures_script"
+author: "Alex"
+date: "9/22/2022"
+output: html_document
+---
+
+```{r, libraries}
+library(ggplot2)
+library(dplyr)
+library(OUTRIDER)
+library(magrittr)
+library(patchwork)
+library(ggpubr)
+library(cowplot)
+```
+
+```{r, import arguments}
+args <- (commandArgs(trailingOnly = TRUE))
+for (i in 1:length(args)) {
+  eval(parse(text = args[[i]]))
+}
+
+```
+
+```{r}
+print(data_directory)
+print(output_directory)
+```
+
+```{r}
+
+rds_Kremer_RUV='/RUV_optimalThreshold_Analysis_Kremer_Marginal_outliers.RDS'
+rds_Kremer_Outrider_Autoencoder='/Outrider_autoencoder_Analysis_Kremer_Marginal_outliers.RDS'
+rds_Kremer_Outrider_PCA='/Outrider_PCA_Analysis_Kremer_Marginal_outliers.RDS'
+Outsingle <- '/Kremer_counts_Marginal_Outliers_pandasdf-fzse-zs-svd-optht-zs.csv'
+time_Outsingle <- '/time_OutSingle_Kremer_Marginal_Outliers.txt'
+
+```
+
+
+```{r, import functions}
+AUC_calculation <- function(se){
+  
+  require(precrec)
+  
+  auc_matrix <- matrix(NA, ncol = ncol(se), nrow = 1)
+    
+    for(i in c(1:ncol(se))){
+    scores <-  -c(unlist(assays(se)$pValue[,i]))
+    labels <-  c(unlist(abs(assays(se)$Outliers[,i])))
+    msmdat_simulation <- mmdata(c(join_scores(scores,chklen=F)),
+                                c(join_labels(labels,chklen=F)))
+    mscurves_simulation <- evalmod(msmdat_simulation)
+    auc_matrix[,i] <- subset(auc(mscurves_simulation),curvetypes == "PRC")$aucs
+      
+   }
+
+  
+  return(auc_matrix)
+  
+  
+
+}
+```
+
+
+
+
+
+```{r}
+
+rds_Kremer_RUV <- readRDS(file = paste0(data_directory,rds_Kremer_RUV))
+rds_Kremer_Outrider_Autoencoder <- readRDS(file = paste0(data_directory,rds_Kremer_Outrider_Autoencoder))
+rds_Kremer_Outrider_PCA <- readRDS(file = paste0(data_directory,rds_Kremer_Outrider_PCA))
+Outsingle <- read.delim(paste0(data_directory,Outsingle))
+
+read.delim(paste0(data_directory,time_Outsingle),header = F)
+```
+
+
+
+```{r,auc calculation}
+list_rds <- list(
+     rds_Kremer_RUV,
+     rds_Kremer_Outrider_Autoencoder,
+     rds_Kremer_Outrider_PCA
+)
+
+list_auc <- lapply(list_rds, AUC_calculation)
+
+
+
+list_rds_time <- list(
+     rds_Kremer_RUV,
+     rds_Kremer_Outrider_Autoencoder,
+     rds_Kremer_Outrider_PCA
+)
+
+list_time <- list_rds_time %>% lapply(. %>% metadata) %>% lapply(. %>% .["time"]) %>% unlist
+```
+
+```{r}
+auc_matrix_Outsingle <- matrix(NA, ncol = ncol(Outsingle), nrow = 1)
+    
+    for(i in c(1:ncol(Outsingle))){
+    scores <-  abs(unlist(Outsingle[,i]))
+    labels <-  c(unlist(abs(assays(rds_Kremer_RUV)$Outliers[,i])))
+    msmdat_simulation <- mmdata(c(join_scores(scores,chklen=F)),
+                                c(join_labels(labels,chklen=F)))
+    mscurves_simulation <- evalmod(msmdat_simulation)
+    auc_matrix_Outsingle[,i] <- subset(auc(mscurves_simulation),curvetypes == "PRC")$aucs
+      
+   }
+```
+
+```{r}
+scores <- join_scores(
+                      -c(unlist(assays(rds_Kremer_RUV)$pValue)),
+                      abs(unlist(Outsingle)),
+                      -c(unlist(assays(rds_Kremer_Outrider_Autoencoder)$pValue)),
+                      -c(unlist(assays(rds_Kremer_Outrider_PCA)$pValue)),
+                      chklen = F)
+
+labels <- join_labels(
+                      c(unlist(abs(assays(rds_Kremer_RUV)$Outliers))),
+                      c(unlist(abs(assays(rds_Kremer_RUV)$Outliers))),
+                      c(unlist(abs(assays(rds_Kremer_Outrider_Autoencoder)$Outliers))),
+                      c(unlist(abs(assays(rds_Kremer_Outrider_PCA)$Outliers))),
+                      chklen = F)
+
+
+msmdat_simulation <- mmdata(scores,
+                            labels,
+                            modnames =
+                              c("saseR","OutSingle","OUTRIDER-Autoencoder","OUTRIDER-PCA"),
+                            dsids = c(1:4))
+mscurves_simulation <- evalmod(msmdat_simulation)
+df_pr <- as.data.frame(mscurves_simulation)
+df_pr$modname <- factor(df_pr$modname,levels = c("saseR","saseR hyperparameters", "OutSingle",
+                                                   "saseR edgeR",
+                                    "OUTRIDER-Autoencoder", 
+                                    "OUTRIDER-PCA"))
+
+```
+
+```{r}
+df_performance <- data.frame("aucs" = c(c(unlist(list_auc)),c(unlist(auc_matrix_Outsingle))),
+                             "method" =  
+                 rep(c("saseR",
+                       "OUTRIDER-Autoencoder", 
+                       "OUTRIDER-PCA",
+                       "OutSingle"),
+                     each = 119))
+
+df_performance$method <- factor(df_performance$method,levels = c("saseR","OutSingle" ,"OUTRIDER-Autoencoder", "OUTRIDER-PCA"))
+```
+
+
+```{r}
+df_time <- data.frame("time" = c(list_time/3600,c(40.725+125.181)/3600), 
+                      method = c("saseR",
+                                     "OUTRIDER-Autoencoder", 
+                                     "OUTRIDER-PCA",
+                                 "OutSingle"))
+df_time$method <- factor(df_time$method,levels = c("saseR", "OutSingle","OUTRIDER-Autoencoder", "OUTRIDER-PCA"))
+
+```
+
+
+```{r}
+bp.vals <- function(x, probs=c(0.05, 0.25, 0.5,0.75, .95)) {
+  r <- quantile(x, probs=probs , na.rm=TRUE)
+  names(r) <- c("ymin", "lower", "middle", "upper", "ymax")
+  r
+}
+```
+
+
+
+
+```{r}
+plot_1 <- ggplot(data = df_performance %>% filter(method %in% c("saseR", "OutSingle",
+                                    "OUTRIDER-Autoencoder", 
+                                    "OUTRIDER-PCA")) ,aes(x = method, y = aucs, col = method))  + stat_summary(fun.data = bp.vals, geom="boxplot") + geom_jitter(size = 0.2)  + scale_color_manual(values = c("saseR" = "#E69F00", "OutSingle" = "#56B4E9","OUTRIDER-Autoencoder"="#0072B2", "OUTRIDER-PCA"= "#009E73")) + ylab("Area under the curve per sample") + theme_bw() + theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) + ylim(c(0,1.0001)) + theme(legend.position = "none")+
+  theme(axis.text=element_text(size=10), axis.title=element_text(size=12)) 
+print(plot_1)
+
+```
+
+
+```{r}
+time_labels <- c("1 min","10.6 h","35 min", "3 min")
+plot_2 <- ggplot(data = df_time %>% filter(method %in% c("saseR",
+                                    "OUTRIDER-Autoencoder", 
+                                    "OUTRIDER-PCA", "OutSingle")), aes(y = time*60, x= method,fill = method)) + geom_bar(stat="identity", alpha =0.8) + scale_fill_manual(values = c("saseR" = "#E69F00", "OutSingle" = "#56B4E9", "OUTRIDER-Autoencoder"="#0072B2", "OUTRIDER-PCA"= "#009E73"))  + ylab("Computational time (minutes)") + scale_y_continuous(trans='log10') + 
+  theme(legend.title = element_blank()) + theme_bw() + theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())+ theme(legend.text=element_text(size=10)) + 
+  theme(axis.text=element_text(size=10), axis.title=element_text(size=12)) + geom_text(aes(label=time_labels), position=position_dodge(width=0.9), vjust=-0.25, size = 4)+theme(legend.title = element_blank()) + theme(legend.position = "none") + coord_cartesian(ylim = c(1,1000))
+print(plot_2)
+```
+
+```{r}
+
+plot_3 <- ggplot(data = df_pr%>% filter(type == "PRC" & (modname %in% c("saseR",
+                                    "OUTRIDER-Autoencoder", 
+                                    "OUTRIDER-PCA", "OutSingle"))), aes(x = x, y = y, col = modname)) + geom_line() + ggtitle(label = "") + ylab("Precision")  + xlab("Recall") + theme_bw() + 
+  theme(axis.text=element_text(size=10), axis.title=element_text(size=12))  + scale_color_manual(values = c("saseR" = "#E69F00", "OutSingle" = "#56B4E9", "OUTRIDER-Autoencoder"="#0072B2", "OUTRIDER-PCA"= "#009E73"))+ 
+  theme( legend.title = element_blank(),legend.position = "bottom", 
+         legend.text = element_text(size = 12))
+plot_3
+```
+
+
+```{r}
+legend <- get_legend(plot_3)
+prow <- plot_grid(plot_1 + theme(legend.position = "none"), plot_3 + theme(legend.position = "none"),
+                  plot_2 + theme(legend.position = "none"), labels = c("A","B","C"), ncol = 3,
+                  rel_heights = c(1,1,1), align = "h")
+
+```
+
+```{r}
+Figure_1 <- plot_grid(prow,legend,ncol = 1, rel_heights= c(1,0.1))
+Figure_1
+```
+
+
+
+
+```{r}
+ggsave(paste0(output_directory,"/Supplementary-Figure-4.png"), Figure_1, 
+       device = "png", width = 9, height = 4.5, dpi = 300)
+ggsave(paste0(output_directory,"/Supplementary-Figure-4.eps"), Figure_1, 
+       device = cairo_ps, width = 9, height = 4.5, dpi = 300)
+ggsave(paste0(output_directory,"/Supplementary-Figure-4.pdf"), Figure_1, 
+       device = "pdf", width = 9, height = 4.5, dpi = 300)
+
+```
+
+

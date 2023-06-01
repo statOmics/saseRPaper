@@ -1,0 +1,102 @@
+---
+title: "Untitled"
+author: "Alex"
+date: "3/9/2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r}
+library(FRASER)
+library(ASpli)
+library(GenomicFeatures)
+library(lubridate)
+library(BiocParallel)
+library(data.table)
+library(SummarizedExperiment)
+library(dplyr)
+library(pracma)
+library(PRROC)
+library(TxDb.Hsapiens.UCSC.hg19.knownGene)
+library(havok)
+set.seed(100)
+```
+
+```{r, import arguments}
+args <- (commandArgs(trailingOnly = TRUE))
+for (i in 1:length(args)) {
+  eval(parse(text = args[[i]]))
+}
+
+```
+
+```{r, show arguments}
+print(function_directory)
+print(output_directory)
+
+
+
+```
+
+```{r}
+fds <- loadFraserDataSet(
+          dir = paste0(output_directory,"/Fraser"),
+                  name = "PCA_jaccard_results_Kremer_disease")
+
+fds <- annotateRangesWithTxDb(fds, txdb = TxDb.Hsapiens.UCSC.hg19.knownGene)
+rowRanges(fds)$hgnc_symbol[is.na(rowRanges(fds)$hgnc_symbol)] <- "Unavailable_gene"
+
+```
+
+```{r}
+source(paste0(function_directory,
+              "/fitRUVMD-aberrant-splicing-optimalhardthreshold.R"))
+source(paste0(function_directory, 
+              "/Accessors.R"))
+
+
+```
+
+
+
+```{r}
+counts <- as.matrix(assays(fds)$rawCountsJ)
+offsets <- as.matrix(assays(fds)$rawCountsJ +
+                       assays(fds)$rawOtherCounts_jaccard)
+counts[offsets == 0] <- 1
+offsets[offsets == 0] <- 1
+colnames(counts) <- colnames(fds)
+colnames(offsets) <- colnames(fds)
+rownames(counts) <- paste(seqnames(fds),start(fds),end(fds), sep = "-")
+rownames(offsets) <- paste(seqnames(fds),start(fds),end(fds), sep = "-")
+rowData <- as.data.frame(rowRanges(fds))
+rowData$locus = rowRanges(fds)$hgnc_symbol
+rownames(rowData) <- paste(seqnames(fds),start(fds),end(fds), sep = "-")
+
+jaccard_se <- SummarizedExperiment(assays = SimpleList(
+                                              "counts" = counts,
+                                              "offsets" = offsets),
+                                 metadata = list("design" = ~1),
+                                 colData = list("Names" = colnames(fds)),
+                                 rowData = list(rowData))
+
+
+
+```
+
+
+
+```{r}
+
+
+seFit <- fitRUVMD(se = jaccard_se)
+
+
+saveRDS(object = seFit, 
+        file = paste0(output_directory, "/seFit_fRUV_threshold_jaccard_Kremer_disease.RDS"))
+
+```
+
+

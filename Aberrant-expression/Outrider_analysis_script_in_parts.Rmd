@@ -1,0 +1,89 @@
+---
+title: "Untitled"
+author: "Alex"
+date: "9/22/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, libraries}
+library(OUTRIDER)
+library(lubridate)
+```
+
+```{r, import arguments}
+args <- (commandArgs(trailingOnly = TRUE))
+for (i in 1:length(args)) {
+  eval(parse(text = args[[i]]))
+}
+
+```
+
+```{r, show arguments}
+print(data_directory)
+print(function_directory)
+print(output_directory)
+print(autoencoder)
+print(cores)
+print(params)
+
+
+```
+
+
+
+
+```{r, reading data}
+rds <- readRDS(file = data_directory)
+rds <- OutriderDataSet(se = rds)
+
+```
+
+```{r, analysis}
+start_time <- Sys.time()
+
+set.seed(100)
+
+rds <- estimateSizeFactors(rds)
+rds_encoding_dim <- findEncodingDim(rds,
+                                    zScore = 3,
+                                    sdlog = log(1.6),
+                                    lnorm = TRUE,
+                                     inj = "both",
+                                    implementation = autoencoder,
+                                    BPPARAM = cores,
+                                    params = params)
+
+end_time <- Sys.time()
+
+time_hyperparam <- seconds(end_time) - seconds(start_time)
+
+
+start_time <- Sys.time()
+
+rds_final <- OUTRIDER(ods = rds_encoding_dim,
+                              implementation = autoencoder,
+                      BPPARAM = cores)
+
+end_time <- Sys.time()
+
+time_analysis <- seconds(end_time) - seconds(start_time)
+
+metadata(rds_final)$time_hyperparam <- time_hyperparam
+metadata(rds_final)$time_analysis <- time_analysis
+
+
+
+```
+
+
+```{r,save results}
+saveRDS(object = rds_final, file = output_directory)
+
+```
+
+
+

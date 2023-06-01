@@ -1,0 +1,104 @@
+---
+title: "Untitled"
+author: "Alex"
+date: "2/16/2023"
+output: html_document
+---
+
+```{r}
+library(FRASER)
+library(data.table)
+set.seed(100)
+
+```
+
+```{r, import arguments}
+args <- (commandArgs(trailingOnly = TRUE))
+for (i in 1:length(args)) {
+  eval(parse(text = args[[i]]))
+}
+
+```
+
+```{r, show arguments}
+print(data_directory)
+print(output_directory)
+
+
+```
+
+```{r}
+
+fds <- loadFraserDataSet(dir =
+                paste0(data_directory,"/Kremer/Fraser"),
+                         name = "Outliers_injection_jaccard")
+
+saveFraserDataSet(fds = fds, dir =
+                 paste0(data_directory,"/Kremer/Fraser"),
+                         name = "Outliers_injection_jaccard_psi3_copy")
+fds <- loadFraserDataSet( dir =
+                 paste0(data_directory,"/Kremer/Fraser"),
+                         name = "Outliers_injection_jaccard_psi3_copy")
+
+```
+
+
+```{r}
+fds <- calculatePSIValues(fds, BPPARAM = MulticoreParam(10), overwriteCts = TRUE)
+fds <- filterExpressionAndVariability(fds, BPPARAM = MulticoreParam(10))
+
+fds <- fds[mcols(fds,type ="j")[,"passed"],]
+
+
+saveFraserDataSet(fds = fds,
+                  dir = paste0(output_directory,"/Fraser"),
+                         name = "filtered_counts_with_jaccard_outliers_psi3")
+
+fds <- loadFraserDataSet(
+                  dir = paste0(output_directory,"/Fraser"),
+                         name = "filtered_counts_with_jaccard_outliers_psi3")
+
+
+```
+
+
+```{r}
+set.seed(100)
+
+fds <- optimHyperParams(fds, type = "psi3", plot = F, q_param = seq(2,11,1), BPPARAM = MulticoreParam(10))
+
+
+saveFraserDataSet(fds = fds,
+                  dir =
+                paste0(output_directory,"/Fraser"),
+                  name = "optimal_hyperparameters_jaccard_outliers_psi3")
+
+```
+
+
+
+
+```{r}
+
+fds <- loadFraserDataSet(
+               dir = paste0(output_directory,"/Fraser"), 
+               name = "optimal_hyperparameters_jaccard_outliers_psi3")
+
+fds <- fit(fds,
+           type = c("psi3"),
+           q = bestQ(fds, type = "psi3"),
+              implementation = "PCA",
+              BPPARAM = MulticoreParam(10))
+
+fds <- calculatePvalues(fds = fds,
+                        type = c("psi3"),
+                        implementation = "PCA",
+                        BPPARAM = MulticoreParam(10))
+
+
+
+saveFraserDataSet(fds = fds, 
+          dir = paste0(output_directory,"/Fraser"),
+                  name = "PCA_results_jaccard_outliers_psi3")
+```
+

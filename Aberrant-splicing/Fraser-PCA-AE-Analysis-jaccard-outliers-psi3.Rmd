@@ -1,0 +1,83 @@
+---
+title: "Untitled"
+author: "Alex"
+date: "2/16/2023"
+output: html_document
+---
+
+```{r}
+library(FRASER)
+library(data.table)
+set.seed(100)
+
+```
+
+```{r, import arguments}
+args <- (commandArgs(trailingOnly = TRUE))
+for (i in 1:length(args)) {
+  eval(parse(text = args[[i]]))
+}
+
+```
+
+```{r, show arguments}
+print(output_directory)
+
+
+```
+
+```{r}
+fds <- loadFraserDataSet(
+                  dir = 
+                paste0(output_directory,"/Fraser"),
+                  name = "filtered_counts_with_jaccard_outliers_psi3")
+
+saveFraserDataSet(fds = fds,
+                  dir =
+                paste0(output_directory,"/Fraser"),
+                  name = "Kremer_PCA_AE_results_jaccard_outliers_psi3")
+
+fds <- loadFraserDataSet(
+                  dir = 
+                paste0(output_directory,"/Fraser"),
+                  name = "Kremer_PCA_AE_results_jaccard_outliers_psi3")
+
+
+fds_hyperparam <- loadFraserDataSet(
+                  dir = 
+                paste0(output_directory,"/Fraser"),
+                  name = "optimal_hyperparameters_jaccard_outliers_psi3")
+
+
+```
+
+
+
+
+```{r}
+
+
+
+fds <- fit(fds,
+           type = c("psi3"),
+           q = bestQ(fds_hyperparam, type = "psi3"),
+              implementation = "AE-weighted",
+              BPPARAM = MulticoreParam(10))
+
+
+
+fds <- calculatePvalues(fds = fds,
+                        type = c("psi3"),
+                        implementation = "AE-weighted",
+                        BPPARAM = MulticoreParam(10))
+
+
+
+
+
+
+saveFraserDataSet(fds = fds, 
+          dir = paste0(output_directory,"/Fraser"),
+                  name = "Kremer_PCA_AE_results_jaccard_outliers_psi3")
+```
+

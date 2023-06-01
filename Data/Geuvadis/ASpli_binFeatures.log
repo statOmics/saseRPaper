@@ -1,0 +1,18 @@
+* Number of extracted Genes = 20054 
+* Number of extracted Exon Bins = 526421 
+* Number of extracted intron bins = 433023 
+* Number of extracted trascripts = 170308 
+* Number of extracted junctions = 314333 
+* Number of AS bins (not include external) = 82081
+* Number of AS bins (include external) = 84088
+* Classified as: 
+	ES bins = 26431	(32%)
+	IR bins = 11892	(14%)
+	Alt5'ss bins = 8388	(10%)
+	Alt3'ss bins = 9187	(11%)
+	Multiple AS bins = 26183	(32%)
+	classified as:
+			ES bins = 8198	(31%)
+			IR bins = 5727	(22%)
+			Alt5'ss bins = 4737	(18%)
+			Alt3'ss bins = 6280	(24%)

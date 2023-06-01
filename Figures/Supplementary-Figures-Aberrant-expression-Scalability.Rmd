@@ -1,0 +1,166 @@
+---
+title: "Untitled"
+author: "Alex"
+date: "4/6/2023"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, import arguments}
+args <- (commandArgs(trailingOnly = TRUE))
+for (i in 1:length(args)) {
+  eval(parse(text = args[[i]]))
+}
+
+```
+
+```{r, show arguments}
+print(output_directory)
+```
+
+
+
+
+```{r, libraries}
+library(ggplot2)
+library(dplyr)
+library(OUTRIDER)
+library(magrittr)
+library(patchwork)
+library(ggpubr)
+library(cowplot)
+```
+
+
+
+```{r}
+RUV_latent_factors='/RUV_Analysis_Computational_time_confounders.RDS'
+RUV_edgeR_latent_factors_1='/RUV_edgeR_Analysis_Computational_time_confounders_5-160.RDS'
+RUV_edgeR_latent_factors_2='/RUV_edgeR_Analysis_Computational_time_confounders_165-200.RDS'
+Outrider_PCA_latent_factors='/Outrider_PCA_Analysis_Computational_time_confounders.RDS'
+Outrider_Autoencoder_latent_factors_1='/Outrider_autoencoder_Analysis_Computational_time_confounders_1.RDS'
+Outrider_Autoencoder_latent_factors_2='/Outrider_autoencoder_Analysis_Computational_time_confounders_2.RDS'
+
+RUV_genes <- '/RUV_Analysis_Computational_time_genes.RDS'
+RUV_edgeR_genes <- '/RUV_edgeR_Analysis_Computational_time_genes.RDS'
+Outrider_PCA_genes <- '/Outrider_PCA_Analysis_Computational_time_genes.RDS'
+Outrider_Autoencoder_genes <- '/Outrider_autoencoder_Analysis_Computational_time_genes.RDS'
+
+RUV_patients <- '/RUV_Analysis_Computational_time_patients.RDS'
+RUV_edgeR_patients <- '/RUV_edgeR_Analysis_Computational_time_patients.RDS'
+Outrider_PCA_patients <- '/Outrider_PCA_Analysis_Computational_time_patients.RDS'
+Outrider_Autoencoder_patients <- '/Outrider_autoencoder_Analysis_Computational_time_patients.RDS'
+
+```
+
+```{r}
+RUV_latent_factors <- readRDS(file = paste0(data_directory,RUV_latent_factors))
+RUV_edgeR_latent_factors_1 <- readRDS(file = paste0(data_directory,RUV_edgeR_latent_factors_1))
+RUV_edgeR_latent_factors_2 <- readRDS(file = paste0(data_directory,RUV_edgeR_latent_factors_2))
+Outrider_PCA_latent_factors <- readRDS(file = paste0(data_directory,Outrider_PCA_latent_factors))
+Outrider_Autoencoder_latent_factors_1 <- readRDS(file = paste0(data_directory,Outrider_Autoencoder_latent_factors_1))
+Outrider_Autoencoder_latent_factors_2 <- readRDS(file = paste0(data_directory,Outrider_Autoencoder_latent_factors_2))
+
+RUV_genes <- readRDS(file = paste0(data_directory, RUV_genes))
+RUV_edgeR_genes <- readRDS(file = paste0(data_directory, RUV_edgeR_genes))
+Outrider_PCA_genes <- readRDS(file = paste0(data_directory, Outrider_PCA_genes))
+Outrider_Autoencoder_genes <- readRDS(file = paste0(data_directory, Outrider_Autoencoder_genes))
+
+RUV_patients <- readRDS(file = paste0(data_directory, RUV_patients))
+RUV_edgeR_patients <- readRDS(file = paste0(data_directory, RUV_edgeR_patients))
+Outrider_PCA_patients <- readRDS(file = paste0(data_directory, Outrider_PCA_patients))
+Outrider_Autoencoder_patients <- readRDS(file = paste0(data_directory, Outrider_Autoencoder_patients))
+
+```
+
+```{r}
+df_time <- data.frame("method" = c(rep("saseR",40),
+                                       rep("saseR edgeR",40),
+                                       rep("OUTRIDER-PCA",40),
+                                       rep("OUTRIDER-Autoencoder",40),
+                                       rep("saseR",17),
+                                       rep("saseR edgeR",17),
+                                       rep("OUTRIDER-PCA",17),
+                                       rep("OUTRIDER-Autoencoder",17),                                      
+                                       rep("saseR",9),
+                                       rep("saseR edgeR",9),
+                                       rep("OUTRIDER-PCA",9),
+                                       rep("OUTRIDER-Autoencoder",9)), 
+                          "time" = c(unlist(RUV_latent_factors)/60,
+                                     unlist(RUV_edgeR_latent_factors_1)/60,
+                                     unlist(RUV_edgeR_latent_factors_2)/60,
+                                     unlist(Outrider_PCA_latent_factors)/60,
+                                     unlist(Outrider_Autoencoder_latent_factors_1)/60,
+                                     unlist(Outrider_Autoencoder_latent_factors_2)/60,
+                                     unlist(RUV_genes)/60,
+                                     unlist(RUV_edgeR_genes)/60,
+                                     unlist(Outrider_PCA_genes)/60,
+                                     unlist(Outrider_Autoencoder_genes)/60,
+                                     unlist(RUV_patients)/60,                                   
+                                     unlist(RUV_edgeR_patients)/60, 
+                                     unlist(Outrider_PCA_patients)/60,
+                                     unlist(Outrider_Autoencoder_patients)/60), 
+                          "dimensions" = c(rep(seq(5,200,5),times = 4),
+                                           rep(seq(1000,17000,1000),times = 4),
+                                           rep(seq(60,220,20),times = 4)),
+                          "plot" = c(rep("Latent factors",times = 40*4),
+                                     rep("Genes", times = 17*4),
+                                     rep("Samples",times = 9*4)))
+
+df_time$method <- factor(df_time$method,levels = c("saseR", "saseR edgeR","OUTRIDER-Autoencoder", "OUTRIDER-PCA"))
+```
+
+```{r}
+plot_1 <- ggplot(data = df_time %>% filter(plot == "Latent factors"), aes(x = dimensions, y = time, col = method)) + geom_point(size = 2) + scale_color_manual(values = c("saseR" = "#E69F00", "saseR edgeR" = "#D55E00", "OUTRIDER-Autoencoder" = "#0072B2","OUTRIDER-PCA"= "#009E73")) + ylab("Computational time (min)") + xlab("Number of latent factors")  + theme(axis.text=element_text(size=6), axis.title.y=element_text(size=10), strip.text = element_text(size=12)) + ylim(c(0,200)) + facet_wrap(~plot) + theme_bw()+  theme(legend.text=element_text(size=12), legend.title = element_blank(), axis.title.x=element_blank(), legend.position = "bottom")
+
+plot_2 <- ggplot(data = df_time %>% filter(plot == "Latent factors" & (method %in%c("saseR","OUTRIDER-PCA"))), aes(x = dimensions, y = time, col = method)) + geom_point(size = 2) + scale_color_manual(values = c("saseR" = "#E69F00", "saseR edgeR" = "#D55E00", "OUTRIDER-Autoencoder" = "#0072B2","OUTRIDER-PCA"= "#009E73")) + ylab("Computational time (min)") + xlab("Number of latent factors") + theme(axis.text=element_text(size=10), axis.title=element_text(size=12),strip.text = element_text(size=12)) + ylim(c(0,8))+ theme_bw() +  theme(legend.position="none")
+
+
+plot_3 <- ggplot(data = df_time %>% filter(plot == "Genes"), aes(x = dimensions, y = time, col = method)) + geom_point(size = 2) + scale_color_manual(values = c("saseR" = "#E69F00", "saseR edgeR" = "#D55E00", "OUTRIDER-Autoencoder" = "#0072B2","OUTRIDER-PCA"= "#009E73")) + ylab("Computational time (min)") + xlab("Number of genes") + theme(axis.text=element_text(size=10),strip.text = element_text(size=12))+ facet_wrap(~plot) + theme_bw() + ylim(c(0,140)) + theme(legend.text=element_text(size=12), legend.title = element_blank(), axis.title=element_blank())
+
+
+plot_4 <- ggplot(data = df_time%>%filter(plot == "Genes" & (method %in%c("saseR","OUTRIDER-PCA"))), aes(x = dimensions, y = time, col = method)) + geom_point(size = 2) + scale_color_manual(values = c("saseR" = "#E69F00", "saseR edgeR" = "#D55E00", "OUTRIDER-Autoencoder" = "#0072B2","OUTRIDER-PCA"= "#009E73")) + ylab("Computational time (min)") + xlab("Number of genes") + theme(axis.text=element_text(size=10), axis.title=element_text(size=12),strip.text = element_text(size=12))  + theme_bw()+ ylim(c(0,10))+ theme(legend.position = "none", axis.title.y=element_blank())
+
+
+plot_5 <- ggplot(data = df_time%>%filter(plot == "Samples" ), aes(x = dimensions, y = time, col = method)) + geom_point(size = 2) + scale_color_manual(values = c("saseR" = "#E69F00", "saseR edgeR" = "#D55E00", "OUTRIDER-Autoencoder" = "#0072B2","OUTRIDER-PCA"= "#009E73")) + ylab("Computational time (min)") + xlab("Number of samples") + theme(axis.text=element_text(size=10), axis.title=element_text(size=12),strip.text = element_blank())  + theme_bw() + facet_wrap(~plot) + ylim(c(0,140)) + theme(legend.text=element_text(size=12), legend.title = element_blank(), axis.title=element_blank())
+
+
+plot_6 <- ggplot(data = df_time%>%filter(plot == "Samples" & (method %in%c("saseR","OUTRIDER-PCA"))), aes(x = dimensions, y = time, col = method)) + geom_point(size = 2) + scale_color_manual(values = c("saseR" = "#E69F00", "saseR edgeR" = "#D55E00", "OUTRIDER-Autoencoder" = "#0072B2","OUTRIDER-PCA"= "#009E73"))  + ylab("Computational time (min)") + xlab("Number of samples") + theme(axis.text=element_text(size=10), axis.title=element_text(size=12),strip.text = element_blank()) + ylim(c(0,10))  + theme_bw() + theme(
+  strip.background = element_blank(),
+  strip.text.x = element_blank()
+) + theme(legend.position="none", axis.title.y=element_blank())
+
+
+
+```
+
+
+
+```{r}
+legend <- get_legend(plot_1)
+prow <- plot_grid(plot_1 + theme(legend.position = "none"), 
+                  plot_3 + theme(legend.position = "none"), 
+                  plot_5 + theme(legend.position = "none"),
+                  plot_2 + theme(legend.position = "none"), 
+                  plot_4 + theme(legend.position = "none"),
+                  plot_6 + theme(legend.position = "none"),
+                  ncol = 3, nrow = 2,
+                  rel_heights = c(1,1,1,1,1,1), align = "h")
+
+Figure <- plot_grid(prow,legend,ncol = 1, rel_heights= c(1,0.1))
+Figure
+
+```
+
+
+
+```{r}
+ggsave(paste0(output_directory,"/Supplementary-Figure-3.png"), Figure, 
+       device = "png", width = 9, height = 4.5, dpi = 300)
+ggsave(paste0(output_directory,"/Supplementary-Figure-3.eps"), Figure, 
+       device = cairo_ps, width = 9, height = 4.5, dpi = 300)
+ggsave(paste0(output_directory,"/Supplementary-Figure-3.pdf"), Figure, 
+       device = "pdf", width = 9, height = 4.5, dpi = 300)
+```

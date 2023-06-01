@@ -1,0 +1,37 @@
+---
+title: "Untitled"
+author: "Alex"
+date: "4/4/2023"
+output: html_document
+---
+
+```{r, import arguments}
+args <- (commandArgs(trailingOnly = TRUE))
+for (i in 1:length(args)) {
+  eval(parse(text = args[[i]]))
+}
+
+```
+
+```{r}
+print(data_directory)
+print(output_directory)
+```
+
+```{r}
+truth_files <- read.delim(paste0(data_directory,"/Calculated_expression/ERR188023/ERR188023_final_details.txt"),
+                              header = TRUE, as.is = TRUE)
+
+injected_truth_genes <- matrix(truth_files$gene_ds_status, ncol = 1)
+rownames(injected_truth_genes) <- truth_files$gene_id
+
+for(i in c(24:31,33:62)) {
+truth_files <- read.delim(paste0(data_directory,"/Calculated_expression/ERR1880", i,"/ERR1880",i,"_final_details.txt"),
+                              header = TRUE, as.is = TRUE)
+  injected_truth_genes <- cbind(injected_truth_genes, truth_files$gene_ds_status)
+
+}
+
+saveRDS(object = injected_truth_genes, file = paste0(output_directory, "/Geuvadis_outlier_genes.RDS"))
+```
+

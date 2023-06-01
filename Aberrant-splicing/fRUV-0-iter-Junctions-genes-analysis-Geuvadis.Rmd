@@ -1,0 +1,120 @@
+---
+title: "Untitled"
+author: "Alex"
+date: "2/1/2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(ASpli)
+library(GenomicFeatures)
+library(lubridate)
+library(BiocParallel)
+library(data.table)
+library(SummarizedExperiment)
+library(dplyr)
+library(pracma)
+library(PRROC)
+set.seed(100)
+```
+
+```{r, import arguments}
+args <- (commandArgs(trailingOnly = TRUE))
+for (i in 1:length(args)) {
+  eval(parse(text = args[[i]]))
+}
+
+```
+
+```{r, show arguments}
+print(data_directory)
+print(function_directory)
+print(output_directory)
+
+
+```
+
+
+```{r}
+source(paste0(function_directory,
+              "/fitRUVMD-aberrant-splicing-maxiter-0.R"))
+source(paste0(function_directory, 
+              "/Accessors.R"))
+
+```
+
+
+
+```{r}
+data <- readRDS(file = paste0(data_directory, 
+                              "/Geuvadis/ASpli-counts.RDS"))
+
+```
+
+```{r}
+data_duplicate <- data
+
+NovelJunctionCounts <- FilterJunctionCounts(data)
+seNovelJunctionCounts <- getCountsSplicing(NovelJunctionCounts, type = "junction")
+seNovelJunctionCounts <- OffsetSplicing(seNovelJunctionCounts)
+
+allJunctionCounts <- data_duplicate@metadata$junctionCounts[,1:(8+length(colData(data)$Names))]
+colnames(allJunctionCounts)[colnames(allJunctionCounts) == "gene"] <- "locus"
+data_duplicate@metadata$junctionCounts <- allJunctionCounts
+seAllJunctionCounts <- getCountsSplicing(data_duplicate, type = "junction")
+seAllJunctionCounts <- OffsetSplicing(seAllJunctionCounts)
+
+
+unknownJunctions <- rownames(assays(seAllJunctionCounts)$offsets[rowData(seAllJunctionCounts)$locus == "noHit",])
+
+if(!is.null(unknownJunctions)){
+  order <- match(unknownJunctions, rownames(seAllJunctionCounts), nomatch=0)
+  new_offsets <- assays(seAllJunctionCounts)$offsets[order,]
+  assays(seAllJunctionCounts)$offsets[unknownJunctions[order != 0],] <- new_offsets
+   assays(seAllJunctionCounts)$offsets[unknownJunctions[order == 0],] <- 
+     assays(seAllJunctionCounts)$counts[unknownJunctions[order == 0],]
+  
+    levels(rowData(seAllJunctionCounts)$locus) <- c(rowData(seAllJunctionCounts)$locus, 
+                                                      rowData(seNovelJunctionCounts)[unknownJunctions[order != 0],"locus"],
+                                                      paste0("noJunctionCluster", 1:sum(order == 0)))
+  rowData(seAllJunctionCounts)[unknownJunctions[order != 0],"locus"]  <- 
+    factor(rowData(seNovelJunctionCounts)[unknownJunctions[order != 0],"locus"])
+  
+ 
+  rowData(seAllJunctionCounts)[unknownJunctions[order == 0],"locus"]  <- paste0("noJunctionCluster", 1:sum(order == 0))
+
+}
+
+filter <- filterByExpr(seAllJunctionCounts,
+                            min.count = 10,
+                            min.total.count = 15,
+                            large.n = 10,
+                            min.prop = 0.7)
+
+seAllJunctionCounts <- seAllJunctionCounts[filter, ]
+metadata(seAllJunctionCounts)$design <- ~1
+
+
+
+
+```
+
+
+
+```{r}
+seFit <- fitRUVMD(se = seAllJunctionCounts, 
+                  dimensions = 1)
+
+
+saveRDS(object = seFit, 
+        file = paste0(output_directory,"/seFit_fRUV_no_iter_junctions_gene_Geuvadis.RDS"))
+```
+
+
+
+

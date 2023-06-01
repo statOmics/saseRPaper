@@ -1,0 +1,49 @@
+---
+title: "Untitled"
+author: "Alex"
+date: "2/2/2023"
+output: html_document
+---
+
+```{r}
+library(FRASER)
+library(data.table)
+set.seed(100)
+```
+
+```{r, import arguments}
+args <- (commandArgs(trailingOnly = TRUE))
+for (i in 1:length(args)) {
+  eval(parse(text = args[[i]]))
+}
+
+```
+
+```{r}
+print(datadir)
+print(cores)
+```
+
+
+```{r}
+bam = paste0(datadir,'/Calculated_expression/ERR1880', c(23:31,33:62), '/simulated_star_alignment_ERR1880',c(23:31,33:62),'Aligned.sortedByCoord.out.bam')
+
+sampleInfo <- data.table("sampleID" = paste0("Sample",c(1:length(bam))),
+           "bamFile" = bam, 
+           "pairedEnd" = as.logical(rep("TRUE",length(bam))))
+
+settings <- FraserDataSet(colData = sampleInfo)
+
+fds <- countRNAData(settings, BPPARAM = MulticoreParam(10))
+```
+
+
+```{r}
+saveFraserDataSet(fds = fds, dir = paste0(datadir,"/Fraser"), name = "counts_original_unfiltered")
+
+saveFraserDataSet(fds = fds, dir = paste0(datadir,"/Fraser"), name = "counts_original_unfiltered_copy")
+```
+
+
+
+

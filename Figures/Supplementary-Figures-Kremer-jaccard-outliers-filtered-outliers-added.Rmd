@@ -1,0 +1,772 @@
+---
+title: "Untitled"
+author: "Alex"
+date: "4/7/2023"
+output: html_document
+---
+
+```{r}
+library(FRASER)
+library(data.table)
+library(ggplot2)
+library(precrec)
+library(GenomicFeatures)
+library(dplyr)
+library(TxDb.Hsapiens.UCSC.hg19.knownGene)
+library(patchwork)
+library(ggpubr)
+library(cowplot)
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, import arguments}
+args <- (commandArgs(trailingOnly = TRUE))
+for (i in 1:length(args)) {
+  eval(parse(text = args[[i]]))
+}
+
+```
+
+```{r}
+print(data_directory)
+```
+
+
+
+
+```{r}
+fRUV_jaccard <- readRDS(paste0(data_directory, "/seFit_threshold_bins_Kremer_jaccard_outliers.RDS"))
+
+fRUV_jaccard_counts <- readRDS(paste0(data_directory,"/seFit_fRUV_threshold_jaccard_Kremer_jaccard_outliers.RDS"))
+
+
+Fraser_PCA_psi3 <- loadFraserDataSet(dir = paste0(data_directory,"/Fraser/"),
+                            name = "PCA_results_jaccard_outliers_psi3")
+
+Fraser_PCA_AE_psi3 <- loadFraserDataSet(dir = paste0(data_directory,"/Fraser/"),
+                            name = "Kremer_PCA_AE_results_jaccard_outliers_psi3")
+
+
+Fraser_PCA_psi5 <- loadFraserDataSet(dir = paste0(data_directory,"/Fraser/"),
+                            name = "PCA_results_jaccard_outliers_psi5")
+
+Fraser_PCA_AE_psi5 <- loadFraserDataSet(dir = paste0(data_directory,"/Fraser/"),
+                            name = "Kremer_PCA_AE_results_jaccard_outliers_psi5")
+
+
+
+Fraser_PCA_jaccard <- loadFraserDataSet(dir = paste0(data_directory,"/Fraser/"),
+                            name = "Kremer_PCA_results_jaccard_outliers")
+
+Fraser_PCA_AE_jaccard <- loadFraserDataSet(dir = paste0(data_directory,"/Fraser/"),
+                            name = "Kremer_PCA_AE_results_jaccard_outliers")
+
+
+
+Fraser_PCA_psi3 <- annotateRangesWithTxDb(Fraser_PCA_psi3, txdb = TxDb.Hsapiens.UCSC.hg19.knownGene)
+Fraser_PCA_AE_psi3 <- annotateRangesWithTxDb(Fraser_PCA_AE_psi3, txdb = TxDb.Hsapiens.UCSC.hg19.knownGene)
+
+Fraser_PCA_psi5 <- annotateRangesWithTxDb(Fraser_PCA_psi5, txdb = TxDb.Hsapiens.UCSC.hg19.knownGene)
+Fraser_PCA_AE_psi5 <- annotateRangesWithTxDb(Fraser_PCA_AE_psi5, txdb = TxDb.Hsapiens.UCSC.hg19.knownGene)
+
+Fraser_PCA_jaccard <- annotateRangesWithTxDb(Fraser_PCA_jaccard, txdb = TxDb.Hsapiens.UCSC.hg19.knownGene)
+Fraser_PCA_AE_jaccard <- annotateRangesWithTxDb(Fraser_PCA_AE_jaccard, txdb = TxDb.Hsapiens.UCSC.hg19.knownGene)
+
+
+```
+
+
+
+
+```{r}
+pvalues_fRUV_jaccard <- assays(fRUV_jaccard)$pValue
+pvalues_fRUV_jaccard_counts <- assays(fRUV_jaccard_counts)$pValue
+
+pvalues_Fraser_PCA_psi3 <- assays(Fraser_PCA_psi3)$pvaluesBetaBinomial_junction_psi3
+pvalues_Fraser_PCA_AE_psi3 <- assays(Fraser_PCA_AE_psi3)$pvaluesBetaBinomial_junction_psi3
+
+
+pvalues_Fraser_PCA_psi5 <- assays(Fraser_PCA_psi5)$pvaluesBetaBinomial_junction_psi5
+pvalues_Fraser_PCA_AE_psi5 <- assays(Fraser_PCA_AE_psi5)$pvaluesBetaBinomial_junction_psi5
+
+
+pvalues_Fraser_PCA_jaccard <- assays(Fraser_PCA_jaccard)$pvaluesBetaBinomial_junction_jaccard
+pvalues_Fraser_PCA_AE_jaccard <- assays(Fraser_PCA_AE_jaccard)$pvaluesBetaBinomial_junction_jaccard
+
+
+
+```
+
+```{r}
+
+
+
+df_fRUV_jaccard <- as.data.frame(pvalues_fRUV_jaccard)
+df_fRUV_jaccard$gene <- rowData(fRUV_jaccard)$locus
+gene_pvalues_fRUV_jaccard <- as.data.frame(df_fRUV_jaccard %>% group_by(gene) %>%
+                                                      summarise(across(colnames(fRUV_jaccard),min)))
+
+gene_pvalues_fRUV_jaccard <- gene_pvalues_fRUV_jaccard[!is.na(gene_pvalues_fRUV_jaccard$gene),]
+rownames(gene_pvalues_fRUV_jaccard) <- gene_pvalues_fRUV_jaccard$gene
+gene_pvalues_fRUV_jaccard[,1] <- NULL
+
+
+df_fRUV_jaccard_counts <- as.data.frame(pvalues_fRUV_jaccard_counts)
+df_fRUV_jaccard_counts$gene <- rowData(fRUV_jaccard_counts)$locus
+gene_pvalues_fRUV_jaccard_counts <- as.data.frame(df_fRUV_jaccard_counts %>% group_by(gene) %>%
+                                                      summarise(across(colnames(fRUV_jaccard_counts),min)))
+
+gene_pvalues_fRUV_jaccard_counts <- gene_pvalues_fRUV_jaccard_counts[!(is.na(gene_pvalues_fRUV_jaccard_counts$gene)|
+                                                                   gene_pvalues_fRUV_jaccard_counts$gene == "Unavailable_gene"),]
+rownames(gene_pvalues_fRUV_jaccard_counts) <- gene_pvalues_fRUV_jaccard_counts$gene
+gene_pvalues_fRUV_jaccard_counts[,1] <- NULL
+
+
+
+df_Fraser_PCA_psi3 <- as.data.frame(pvalues_Fraser_PCA_psi3)
+df_Fraser_PCA_psi3$gene <- rowRanges(Fraser_PCA_psi3)$hgnc_symbol
+gene_pvalues_Fraser_PCA_psi3 <- as.data.frame(df_Fraser_PCA_psi3 %>% group_by(gene) %>%
+                                                      summarise(across(colnames(Fraser_PCA_psi3),min)))
+
+gene_pvalues_Fraser_PCA_psi3 <- gene_pvalues_Fraser_PCA_psi3[!is.na(gene_pvalues_Fraser_PCA_psi3$gene),]
+rownames(gene_pvalues_Fraser_PCA_psi3) <- gene_pvalues_Fraser_PCA_psi3$gene
+gene_pvalues_Fraser_PCA_psi3[,1] <- NULL
+
+
+df_Fraser_PCA_AE_psi3 <- as.data.frame(pvalues_Fraser_PCA_AE_psi3)
+df_Fraser_PCA_AE_psi3$gene <- rowRanges(Fraser_PCA_AE_psi3)$hgnc_symbol
+gene_pvalues_Fraser_PCA_AE_psi3 <- as.data.frame(df_Fraser_PCA_AE_psi3 %>% group_by(gene) %>%
+                                                      summarise(across(colnames(Fraser_PCA_AE_psi3),min)))
+
+gene_pvalues_Fraser_PCA_AE_psi3 <- gene_pvalues_Fraser_PCA_AE_psi3[!is.na(gene_pvalues_Fraser_PCA_AE_psi3$gene),]
+rownames(gene_pvalues_Fraser_PCA_AE_psi3) <- gene_pvalues_Fraser_PCA_AE_psi3$gene
+gene_pvalues_Fraser_PCA_AE_psi3[,1] <- NULL
+
+
+
+
+
+
+df_Fraser_PCA_psi5 <- as.data.frame(pvalues_Fraser_PCA_psi5)
+df_Fraser_PCA_psi5$gene <- rowRanges(Fraser_PCA_psi5)$hgnc_symbol
+gene_pvalues_Fraser_PCA_psi5 <- as.data.frame(df_Fraser_PCA_psi5 %>% group_by(gene) %>%
+                                                      summarise(across(colnames(Fraser_PCA_psi5),min)))
+
+gene_pvalues_Fraser_PCA_psi5 <- gene_pvalues_Fraser_PCA_psi5[!is.na(gene_pvalues_Fraser_PCA_psi5$gene),]
+rownames(gene_pvalues_Fraser_PCA_psi5) <- gene_pvalues_Fraser_PCA_psi5$gene
+gene_pvalues_Fraser_PCA_psi5[,1] <- NULL
+
+
+df_Fraser_PCA_AE_psi5 <- as.data.frame(pvalues_Fraser_PCA_AE_psi5)
+df_Fraser_PCA_AE_psi5$gene <- rowRanges(Fraser_PCA_AE_psi5)$hgnc_symbol
+gene_pvalues_Fraser_PCA_AE_psi5 <- as.data.frame(df_Fraser_PCA_AE_psi5 %>% group_by(gene) %>%
+                                                      summarise(across(colnames(Fraser_PCA_AE_psi5),min)))
+
+gene_pvalues_Fraser_PCA_AE_psi5 <- gene_pvalues_Fraser_PCA_AE_psi5[!is.na(gene_pvalues_Fraser_PCA_AE_psi5$gene),]
+rownames(gene_pvalues_Fraser_PCA_AE_psi5) <- gene_pvalues_Fraser_PCA_AE_psi5$gene
+gene_pvalues_Fraser_PCA_AE_psi5[,1] <- NULL
+
+
+
+df_Fraser_PCA_jaccard <- as.data.frame(pvalues_Fraser_PCA_jaccard)
+df_Fraser_PCA_jaccard$gene <- rowRanges(Fraser_PCA_jaccard)$hgnc_symbol
+gene_pvalues_Fraser_PCA_jaccard <- as.data.frame(df_Fraser_PCA_jaccard %>% group_by(gene) %>%
+                                                      summarise(across(colnames(Fraser_PCA_jaccard),min)))
+
+gene_pvalues_Fraser_PCA_jaccard <- gene_pvalues_Fraser_PCA_jaccard[!is.na(gene_pvalues_Fraser_PCA_jaccard$gene),]
+rownames(gene_pvalues_Fraser_PCA_jaccard) <- gene_pvalues_Fraser_PCA_jaccard$gene
+gene_pvalues_Fraser_PCA_jaccard[,1] <- NULL
+
+
+df_Fraser_PCA_AE_jaccard <- as.data.frame(pvalues_Fraser_PCA_AE_jaccard)
+df_Fraser_PCA_AE_jaccard$gene <- rowRanges(Fraser_PCA_AE_jaccard)$hgnc_symbol
+gene_pvalues_Fraser_PCA_AE_jaccard <- as.data.frame(df_Fraser_PCA_AE_jaccard %>% group_by(gene) %>%
+                                                      summarise(across(colnames(Fraser_PCA_AE_jaccard),min)))
+
+gene_pvalues_Fraser_PCA_AE_jaccard <- gene_pvalues_Fraser_PCA_AE_jaccard[!is.na(gene_pvalues_Fraser_PCA_AE_jaccard$gene),]
+rownames(gene_pvalues_Fraser_PCA_AE_jaccard) <- gene_pvalues_Fraser_PCA_AE_jaccard$gene
+gene_pvalues_Fraser_PCA_AE_jaccard[,1] <- NULL
+
+
+
+
+
+```
+
+
+```{r}
+outliers_jaccard <- as.data.frame(assays(Fraser_PCA_jaccard)$trueOutliers_jaccard)
+outliers_jaccard[outliers_jaccard != 0] <- 1
+outliers_jaccard$gene <- rowRanges(Fraser_PCA_jaccard)$hgnc_symbol
+outliers_gene_jaccard <- as.data.frame(outliers_jaccard %>% group_by(gene) %>% 
+  summarise(across(colnames(Fraser_PCA_jaccard),max)))
+outliers_gene_jaccard <- outliers_gene_jaccard[!is.na(outliers_gene_jaccard$gene),]
+rownames(outliers_gene_jaccard) <- outliers_gene_jaccard$gene
+outliers_gene_jaccard[,1] <- NULL
+
+```
+
+```{r}
+outlier_genes_fRUV_jaccard <- outliers_gene_jaccard[rownames(outliers_gene_jaccard) %in%
+                                                          (rownames(gene_pvalues_fRUV_jaccard)),]
+outlier_genes_fRUV_jaccard_counts <- outliers_gene_jaccard[rownames(outliers_gene_jaccard) %in%
+                                                          (rownames(gene_pvalues_fRUV_jaccard_counts)),]
+outlier_genes_Fraser_PCA_psi3 <- outliers_gene_jaccard[rownames(outliers_gene_jaccard) %in%
+                                                          (rownames(gene_pvalues_Fraser_PCA_psi3)),]
+outlier_genes_Fraser_PCA_AE_psi3 <- outliers_gene_jaccard[rownames(outliers_gene_jaccard) %in%
+                                                          (rownames(gene_pvalues_Fraser_PCA_AE_psi3)),]
+
+outlier_genes_Fraser_PCA_psi5 <- outliers_gene_jaccard[rownames(outliers_gene_jaccard) %in%
+                                                          (rownames(gene_pvalues_Fraser_PCA_psi5)),]
+outlier_genes_Fraser_PCA_AE_psi5 <- outliers_gene_jaccard[rownames(outliers_gene_jaccard) %in%
+                                                          (rownames(gene_pvalues_Fraser_PCA_AE_psi5)),]
+
+outlier_genes_Fraser_PCA_jaccard <- outliers_gene_jaccard[rownames(outliers_gene_jaccard) %in%
+                                                          (rownames(gene_pvalues_Fraser_PCA_jaccard)),]
+outlier_genes_Fraser_PCA_AE_jaccard <- outliers_gene_jaccard[rownames(outliers_gene_jaccard) %in%
+                                                          (rownames(gene_pvalues_Fraser_PCA_AE_jaccard)),]
+
+
+
+outlier_genes_fRUV_jaccard_filtered <- outliers_gene_jaccard[!(rownames(outliers_gene_jaccard) %in%
+                                                          (rownames(gene_pvalues_fRUV_jaccard))),]
+outlier_genes_fRUV_jaccard_counts_filtered <- outliers_gene_jaccard[!(rownames(outliers_gene_jaccard) %in%
+                                                          (rownames(gene_pvalues_fRUV_jaccard_counts))),]
+
+
+outlier_genes_Fraser_PCA_psi3_filtered <- outliers_gene_jaccard[!(rownames(outliers_gene_jaccard) %in%
+                                                          (rownames(gene_pvalues_Fraser_PCA_psi3))),]
+outlier_genes_Fraser_PCA_AE_psi3_filtered <- outliers_gene_jaccard[!(rownames(outliers_gene_jaccard) %in%
+                                                          (rownames(gene_pvalues_Fraser_PCA_AE_psi3))),]
+
+outlier_genes_Fraser_PCA_psi5_filtered <- outliers_gene_jaccard[!(rownames(outliers_gene_jaccard) %in%
+                                                          (rownames(gene_pvalues_Fraser_PCA_psi5))),]
+outlier_genes_Fraser_PCA_AE_psi5_filtered <- outliers_gene_jaccard[!(rownames(outliers_gene_jaccard) %in%
+                                                          (rownames(gene_pvalues_Fraser_PCA_AE_psi5))),]
+
+outlier_genes_Fraser_PCA_jaccard_filtered <- outliers_gene_jaccard[!(rownames(outliers_gene_jaccard) %in%
+                                                          (rownames(gene_pvalues_Fraser_PCA_jaccard))),]
+outlier_genes_Fraser_PCA_AE_jaccard_filtered <- outliers_gene_jaccard[!(rownames(outliers_gene_jaccard) %in%
+                                                          (rownames(gene_pvalues_Fraser_PCA_AE_jaccard))),]
+
+```
+
+```{r}
+
+gene_pvalues_fRUV_jaccard <- gene_pvalues_fRUV_jaccard[rownames(gene_pvalues_fRUV_jaccard) 
+                                                           %in% rownames(outlier_genes_fRUV_jaccard),]
+order <- match(rownames(gene_pvalues_fRUV_jaccard), rownames(outlier_genes_fRUV_jaccard))
+gene_pvalues_fRUV_jaccard[order,] <- gene_pvalues_fRUV_jaccard
+rownames(gene_pvalues_fRUV_jaccard)[order] <- rownames(gene_pvalues_fRUV_jaccard)
+
+gene_pvalues_fRUV_jaccard_counts <- gene_pvalues_fRUV_jaccard_counts[rownames(gene_pvalues_fRUV_jaccard_counts) 
+                                                           %in% rownames(outlier_genes_fRUV_jaccard_counts),]
+order <- match(rownames(gene_pvalues_fRUV_jaccard_counts), rownames(outlier_genes_fRUV_jaccard_counts))
+gene_pvalues_fRUV_jaccard_counts[order,] <- gene_pvalues_fRUV_jaccard_counts
+rownames(gene_pvalues_fRUV_jaccard_counts)[order] <- rownames(gene_pvalues_fRUV_jaccard_counts)
+
+
+gene_pvalues_Fraser_PCA_psi3 <- gene_pvalues_Fraser_PCA_psi3[rownames(gene_pvalues_Fraser_PCA_psi3) 
+                                                           %in% rownames(outlier_genes_Fraser_PCA_psi3),]
+order <- match(rownames(gene_pvalues_Fraser_PCA_psi3), rownames(outlier_genes_Fraser_PCA_psi3))
+gene_pvalues_Fraser_PCA_psi3[order,] <- gene_pvalues_Fraser_PCA_psi3
+rownames(gene_pvalues_Fraser_PCA_psi3)[order] <- rownames(gene_pvalues_Fraser_PCA_psi3)
+
+gene_pvalues_Fraser_PCA_AE_psi3 <- gene_pvalues_Fraser_PCA_AE_psi3[rownames(gene_pvalues_Fraser_PCA_AE_psi3) 
+                                                           %in% rownames(outlier_genes_Fraser_PCA_AE_psi3),]
+order <- match(rownames(gene_pvalues_Fraser_PCA_AE_psi3), rownames(outlier_genes_Fraser_PCA_AE_psi3))
+gene_pvalues_Fraser_PCA_AE_psi3[order,] <- gene_pvalues_Fraser_PCA_AE_psi3
+rownames(gene_pvalues_Fraser_PCA_AE_psi3)[order] <- rownames(gene_pvalues_Fraser_PCA_AE_psi3)
+
+
+
+
+gene_pvalues_Fraser_PCA_psi5 <- gene_pvalues_Fraser_PCA_psi5[rownames(gene_pvalues_Fraser_PCA_psi5) 
+                                                           %in% rownames(outlier_genes_Fraser_PCA_psi5),]
+
+order <- match(rownames(gene_pvalues_Fraser_PCA_psi5), rownames(outlier_genes_Fraser_PCA_psi5))
+gene_pvalues_Fraser_PCA_psi5[order,] <- gene_pvalues_Fraser_PCA_psi5
+rownames(gene_pvalues_Fraser_PCA_psi5)[order] <- rownames(gene_pvalues_Fraser_PCA_psi5)
+
+gene_pvalues_Fraser_PCA_AE_psi5 <- gene_pvalues_Fraser_PCA_AE_psi5[rownames(gene_pvalues_Fraser_PCA_AE_psi5) 
+                                                           %in% rownames(outlier_genes_Fraser_PCA_AE_psi5),]
+order <- match(rownames(gene_pvalues_Fraser_PCA_AE_psi5), rownames(outlier_genes_Fraser_PCA_AE_psi5))
+gene_pvalues_Fraser_PCA_AE_psi5[order,] <- gene_pvalues_Fraser_PCA_AE_psi5
+rownames(gene_pvalues_Fraser_PCA_AE_psi5)[order] <- rownames(gene_pvalues_Fraser_PCA_AE_psi5)
+
+
+
+order <- match(rownames(gene_pvalues_Fraser_PCA_jaccard), rownames(outlier_genes_Fraser_PCA_jaccard))
+gene_pvalues_Fraser_PCA_jaccard[order,] <- gene_pvalues_Fraser_PCA_jaccard
+rownames(gene_pvalues_Fraser_PCA_jaccard)[order] <- rownames(gene_pvalues_Fraser_PCA_jaccard)
+
+order <- match(rownames(gene_pvalues_Fraser_PCA_AE_jaccard), rownames(outlier_genes_Fraser_PCA_AE_jaccard))
+gene_pvalues_Fraser_PCA_AE_jaccard[order,] <- gene_pvalues_Fraser_PCA_AE_jaccard
+rownames(gene_pvalues_Fraser_PCA_AE_jaccard)[order] <- rownames(gene_pvalues_Fraser_PCA_AE_jaccard)
+
+
+
+
+
+```
+
+
+
+
+```{r}
+outlier_genes_fRUV_jaccard <- rbind(outlier_genes_fRUV_jaccard, 
+                                   outlier_genes_fRUV_jaccard_filtered[rowSums(outlier_genes_fRUV_jaccard_filtered) > 0,])
+outlier_genes_fRUV_jaccard_counts <- rbind(outlier_genes_fRUV_jaccard_counts, 
+                                   outlier_genes_fRUV_jaccard_counts_filtered[rowSums(outlier_genes_fRUV_jaccard_counts_filtered) > 0,])
+
+outlier_genes_Fraser_PCA_psi3 <- rbind(outlier_genes_Fraser_PCA_psi3, 
+                                   outlier_genes_Fraser_PCA_psi3_filtered[rowSums(outlier_genes_Fraser_PCA_psi3_filtered) > 0,])
+outlier_genes_Fraser_PCA_AE_psi3 <- rbind(outlier_genes_Fraser_PCA_AE_psi3, 
+                                   outlier_genes_Fraser_PCA_AE_psi3_filtered[rowSums(outlier_genes_Fraser_PCA_AE_psi3_filtered) > 0,])
+
+
+outlier_genes_Fraser_PCA_psi5 <- rbind(outlier_genes_Fraser_PCA_psi5, 
+                                   outlier_genes_Fraser_PCA_psi5_filtered[rowSums(outlier_genes_Fraser_PCA_psi5_filtered) > 0,])
+outlier_genes_Fraser_PCA_AE_psi5 <- rbind(outlier_genes_Fraser_PCA_AE_psi5, 
+                                   outlier_genes_Fraser_PCA_AE_psi5_filtered[rowSums(outlier_genes_Fraser_PCA_AE_psi5_filtered) > 0,])
+
+
+outlier_genes_Fraser_PCA_jaccard <- rbind(outlier_genes_Fraser_PCA_jaccard, 
+                                   outlier_genes_Fraser_PCA_jaccard_filtered[rowSums(outlier_genes_Fraser_PCA_jaccard_filtered) > 0,])
+outlier_genes_Fraser_PCA_AE_jaccard <- rbind(outlier_genes_Fraser_PCA_AE_jaccard, 
+                                   outlier_genes_Fraser_PCA_AE_jaccard_filtered[rowSums(outlier_genes_Fraser_PCA_AE_jaccard_filtered) > 0,])
+
+
+gene_pvalues_fRUV_jaccard <- rbind(as.matrix(gene_pvalues_fRUV_jaccard), 
+                                matrix(1, 
+                                       ncol = ncol(gene_pvalues_fRUV_jaccard), 
+                                       nrow = sum(rowSums(outlier_genes_fRUV_jaccard_filtered) > 0)))
+
+gene_pvalues_fRUV_jaccard_counts <- rbind(as.matrix(gene_pvalues_fRUV_jaccard_counts), 
+                                matrix(1, 
+                                       ncol = ncol(gene_pvalues_fRUV_jaccard_counts), 
+                                       nrow = sum(rowSums(outlier_genes_fRUV_jaccard_counts_filtered) > 0)))
+
+gene_pvalues_Fraser_PCA_psi3 <- rbind(as.matrix(gene_pvalues_Fraser_PCA_psi3), 
+                                matrix(1, 
+                                       ncol = ncol(gene_pvalues_Fraser_PCA_psi3), 
+                                       nrow = sum(rowSums(outlier_genes_Fraser_PCA_psi3_filtered) > 0)))
+
+gene_pvalues_Fraser_PCA_AE_psi3 <- rbind(as.matrix(gene_pvalues_Fraser_PCA_AE_psi3), 
+                                matrix(1, 
+                                       ncol = ncol(gene_pvalues_Fraser_PCA_AE_psi3), 
+                                       nrow = sum(rowSums(outlier_genes_Fraser_PCA_AE_psi3_filtered) > 0)))
+
+
+gene_pvalues_Fraser_PCA_psi5 <- rbind(as.matrix(gene_pvalues_Fraser_PCA_psi5), 
+                                matrix(1, 
+                                       ncol = ncol(gene_pvalues_Fraser_PCA_psi5), 
+                                       nrow = sum(rowSums(outlier_genes_Fraser_PCA_psi5_filtered) > 0)))
+
+gene_pvalues_Fraser_PCA_AE_psi5 <- rbind(as.matrix(gene_pvalues_Fraser_PCA_AE_psi5), 
+                                matrix(1, 
+                                       ncol = ncol(gene_pvalues_Fraser_PCA_AE_psi5), 
+                                       nrow = sum(rowSums(outlier_genes_Fraser_PCA_AE_psi5_filtered) > 0)))
+
+
+gene_pvalues_Fraser_PCA_jaccard <- rbind(as.matrix(gene_pvalues_Fraser_PCA_jaccard), 
+                                matrix(1, 
+                                       ncol = ncol(gene_pvalues_Fraser_PCA_jaccard), 
+                                       nrow = sum(rowSums(outlier_genes_Fraser_PCA_jaccard_filtered) > 0)))
+
+gene_pvalues_Fraser_PCA_AE_jaccard <- rbind(as.matrix(gene_pvalues_Fraser_PCA_AE_jaccard), 
+                                matrix(1, 
+                                       ncol = ncol(gene_pvalues_Fraser_PCA_AE_jaccard), 
+                                       nrow = sum(rowSums(outlier_genes_Fraser_PCA_AE_jaccard_filtered) > 0)))
+
+
+```
+
+
+```{r}
+sum(outlier_genes_fRUV_jaccard)
+sum(outlier_genes_fRUV_jaccard_counts)
+
+sum(outlier_genes_Fraser_PCA_psi3)
+sum(outlier_genes_Fraser_PCA_AE_psi3)
+
+sum(outlier_genes_Fraser_PCA_psi5)
+sum(outlier_genes_Fraser_PCA_AE_psi5)
+
+sum(outlier_genes_Fraser_PCA_jaccard)
+sum(outlier_genes_Fraser_PCA_AE_jaccard)
+
+
+```
+
+```{r}
+
+library(precrec)
+
+
+
+
+auc_fRUV_jaccard <- matrix(NA, ncol = ncol(gene_pvalues_fRUV_jaccard), nrow = 1)
+    
+    for(i in c(1:ncol(gene_pvalues_fRUV_jaccard))){
+    scores <-  -c(unlist(gene_pvalues_fRUV_jaccard[,i]))
+    labels <-  c(unlist(abs(outlier_genes_fRUV_jaccard[,i])))
+    msmdat_simulation <- mmdata(c(scores),
+                                c(labels))
+    mscurves_simulation <- evalmod(msmdat_simulation)
+    auc_fRUV_jaccard[,i] <- subset(auc(mscurves_simulation),curvetypes == "PRC")$aucs
+      
+    }
+
+auc_fRUV_jaccard_counts <- matrix(NA, ncol = ncol(gene_pvalues_fRUV_jaccard_counts), nrow = 1)
+    
+    for(i in c(1:ncol(gene_pvalues_fRUV_jaccard_counts))){
+    scores <-  -c(unlist(gene_pvalues_fRUV_jaccard_counts[,i]))
+    labels <-  c(unlist(abs(outlier_genes_fRUV_jaccard_counts[,i])))
+    if (length(unique(labels)) == 1){
+      auc_fRUV_jaccard_counts[,i] <- 0
+    } else {
+    msmdat_simulation <- mmdata(c(scores),
+                                c(labels))
+    mscurves_simulation <- evalmod(msmdat_simulation)
+    auc_fRUV_jaccard_counts[,i] <- subset(auc(mscurves_simulation),curvetypes == "PRC")$aucs
+      
+    }
+    }
+
+auc_Fraser_PCA_psi3 <- matrix(NA, ncol = ncol(gene_pvalues_Fraser_PCA_psi3), nrow = 1)
+    
+    for(i in c(1:ncol(gene_pvalues_Fraser_PCA_psi3))){
+    scores <-  -c(unlist(gene_pvalues_Fraser_PCA_psi3[,i]))
+    labels <-  c(unlist(abs(outlier_genes_Fraser_PCA_psi3[,i])))
+        if (length(unique(labels)) == 1){
+      auc_Fraser_PCA_psi3[,i] <- 0
+    } else {
+    msmdat_simulation <- mmdata(c(scores),
+                                c(labels))
+    mscurves_simulation <- evalmod(msmdat_simulation)
+    auc_Fraser_PCA_psi3[,i] <- subset(auc(mscurves_simulation),curvetypes == "PRC")$aucs
+      
+    }
+    }
+
+auc_Fraser_PCA_AE_psi3 <- matrix(NA, ncol = ncol(gene_pvalues_Fraser_PCA_AE_psi3), nrow = 1)
+    
+    for(i in c(1:ncol(gene_pvalues_Fraser_PCA_AE_psi3))){
+    scores <-  -c(unlist(gene_pvalues_Fraser_PCA_AE_psi3[,i]))
+    labels <-  c(unlist(abs(outlier_genes_Fraser_PCA_AE_psi3[,i])))
+    if (length(unique(labels)) == 1){
+      auc_Fraser_PCA_AE_psi3[,i] <- 0
+    } else {
+    msmdat_simulation <- mmdata(c(scores),
+                                c(labels))
+    mscurves_simulation <- evalmod(msmdat_simulation)
+    auc_Fraser_PCA_AE_psi3[,i] <- subset(auc(mscurves_simulation),curvetypes == "PRC")$aucs
+      
+    }
+}
+
+
+
+
+
+auc_Fraser_PCA_psi5 <- matrix(NA, ncol = ncol(gene_pvalues_Fraser_PCA_psi5), nrow = 1)
+    
+    for(i in c(1:ncol(gene_pvalues_Fraser_PCA_psi5))){
+    scores <-  -c(unlist(gene_pvalues_Fraser_PCA_psi5[,i]))
+    labels <-  c(unlist(abs(outlier_genes_Fraser_PCA_psi5[,i])))
+    msmdat_simulation <- mmdata(c(scores),
+                                c(labels))
+    mscurves_simulation <- evalmod(msmdat_simulation)
+    auc_Fraser_PCA_psi5[,i] <- subset(auc(mscurves_simulation),curvetypes == "PRC")$aucs
+      
+    }
+
+auc_Fraser_PCA_AE_psi5 <- matrix(NA, ncol = ncol(gene_pvalues_Fraser_PCA_AE_psi5), nrow = 1)
+    
+    for(i in c(1:ncol(gene_pvalues_Fraser_PCA_AE_psi5))){
+    scores <-  -c(unlist(gene_pvalues_Fraser_PCA_AE_psi5[,i]))
+    labels <-  c(unlist(abs(outlier_genes_Fraser_PCA_AE_psi5[,i])))
+    msmdat_simulation <- mmdata(c(scores),
+                                c(labels))
+    mscurves_simulation <- evalmod(msmdat_simulation)
+    auc_Fraser_PCA_AE_psi5[,i] <- subset(auc(mscurves_simulation),curvetypes == "PRC")$aucs
+      
+    }
+
+
+
+
+
+
+
+
+
+
+auc_Fraser_PCA_jaccard <- matrix(NA, ncol = ncol(gene_pvalues_Fraser_PCA_jaccard), nrow = 1)
+    
+    for(i in c(1:ncol(gene_pvalues_Fraser_PCA_jaccard))){
+    scores <-  -c(unlist(gene_pvalues_Fraser_PCA_jaccard[,i]))
+    labels <-  c(unlist(abs(outlier_genes_Fraser_PCA_jaccard[,i])))
+    msmdat_simulation <- mmdata(c(scores),
+                                c(labels))
+    mscurves_simulation <- evalmod(msmdat_simulation)
+    auc_Fraser_PCA_jaccard[,i] <- subset(auc(mscurves_simulation),curvetypes == "PRC")$aucs
+      
+    }
+
+auc_Fraser_PCA_AE_jaccard <- matrix(NA, ncol = ncol(gene_pvalues_Fraser_PCA_AE_jaccard), nrow = 1)
+    
+    for(i in c(1:ncol(gene_pvalues_Fraser_PCA_AE_jaccard))){
+    scores <-  -c(unlist(gene_pvalues_Fraser_PCA_AE_jaccard[,i]))
+    labels <-  c(unlist(abs(outlier_genes_Fraser_PCA_AE_jaccard[,i])))
+    msmdat_simulation <- mmdata(c(scores),
+                                c(labels))
+    mscurves_simulation <- evalmod(msmdat_simulation)
+    auc_Fraser_PCA_AE_jaccard[,i] <- subset(auc(mscurves_simulation),curvetypes == "PRC")$aucs
+      
+    }
+
+
+
+
+```
+
+
+```{r}
+df_results <- data.frame("auc" =
+                           c(auc_fRUV_jaccard,
+                             auc_fRUV_jaccard_counts,
+                             auc_Fraser_PCA_psi3,
+                             auc_Fraser_PCA_AE_psi3,
+                             auc_Fraser_PCA_psi5,
+                             auc_Fraser_PCA_AE_psi5,
+                             auc_Fraser_PCA_jaccard,
+                             auc_Fraser_PCA_AE_jaccard
+                            ),
+                         "method" = rep(c("saseR junctions",
+                                          "saseR jaccard",
+                                          "FRASER-PCA psi3",
+                                          "FRASER-Autoencoder psi3",
+                                          "FRASER-PCA psi5",
+                                          "FRASER-Autoencoder psi5",
+                                          "FRASER-PCA 2.0",
+                                          "FRASER-Autoencoder 2.0"),
+                                        each = 119))
+df_results$method <- factor(df_results$method, levels = c("saseR junctions",
+                                                          "saseR jaccard",
+                                          "FRASER-PCA 2.0",
+                                          "FRASER-Autoencoder 2.0",
+                                          "FRASER-PCA psi3",
+                                          "FRASER-Autoencoder psi3",
+                                          "FRASER-PCA psi5",
+                                          "FRASER-Autoencoder psi5"
+                                          ))
+
+```
+```{r}
+plot_1 <- ggplot(data = df_results %>% filter(method %in% c("saseR junctions",
+                                          "FRASER-PCA 2.0",
+                                          "FRASER-Autoencoder 2.0",
+                                          "FRASER-PCA psi3",
+                                          "FRASER-Autoencoder psi3",
+                                          "FRASER-PCA psi5",
+                                          "FRASER-Autoencoder psi5")), aes(y = auc, x= method, col = method)) + geom_boxplot(outlier.shape=NA) + geom_jitter() + ylab("Area under the curve per sample") + theme_bw()+ theme(axis.text=element_text(size=12),
+        axis.title=element_text(size=14,face="bold"))  + theme_bw() + ylim(c(0,1.0001)) + theme(legend.position = "none")+
+  theme(axis.text=element_text(size=10), axis.title=element_text(size=12)) + scale_color_manual(values = 
+                              c(
+                                "saseR junctions" = "#CC79A7",
+                                "FRASER-PCA psi3" = "burlywood1",
+                                "FRASER-Autoencoder psi3" = "red3",
+                                "FRASER-PCA psi5" = "cyan1",
+                                "FRASER-Autoencoder psi5" = "lightcyan4",
+                                "FRASER-PCA 2.0"= "#009E73", 
+                                "FRASER-Autoencoder 2.0" = "#0072B2"
+))+ theme(axis.title.x = element_blank(), axis.text.x = element_blank(), axis.ticks.x = element_blank())
+plot_1
+```
+
+```{r}
+scores <- join_scores(-c(unlist(gene_pvalues_fRUV_jaccard)),
+                      -c(unlist(gene_pvalues_fRUV_jaccard_counts)),
+                      -c(unlist(gene_pvalues_Fraser_PCA_psi3)),
+                      -c(unlist(gene_pvalues_Fraser_PCA_AE_psi3)),
+                      -c(unlist(gene_pvalues_Fraser_PCA_psi5)),
+                      -c(unlist(gene_pvalues_Fraser_PCA_AE_psi5)),
+                      -c(unlist(gene_pvalues_Fraser_PCA_jaccard)),
+                      -c(unlist(gene_pvalues_Fraser_PCA_AE_jaccard)),
+                      chklen = F)
+
+labels <- join_labels(c(unlist(abs(outlier_genes_fRUV_jaccard))),
+                      c(unlist(abs(outlier_genes_fRUV_jaccard_counts))),
+                      c(unlist(abs(outlier_genes_Fraser_PCA_psi3))),
+                      c(unlist(abs(outlier_genes_Fraser_PCA_AE_psi3))),
+                      c(unlist(abs(outlier_genes_Fraser_PCA_psi5))),
+                      c(unlist(abs(outlier_genes_Fraser_PCA_AE_psi5))),
+                      c(unlist(abs(outlier_genes_Fraser_PCA_jaccard))),
+                      c(unlist(abs(outlier_genes_Fraser_PCA_AE_jaccard))),
+                      chklen = F)
+
+
+msmdat_simulation <- mmdata(scores,
+                            labels,
+                            modnames =
+                              c("saseR junctions","saseR jaccard",
+                                "FRASER-PCA psi3","FRASER-Autoencoder psi3",
+                                "FRASER-PCA psi5","FRASER-Autoencoder psi5",
+                                "FRASER-PCA 2.0","FRASER-Autoencoder 2.0"
+                                ),
+                            dsids = c(1:8))
+mscurves_simulation <- evalmod(msmdat_simulation)
+df_pr <- data.frame(mscurves_simulation)
+df_pr$modname <- factor(df_pr$modname, levels = c("saseR junctions","saseR jaccard",
+                                "FRASER-PCA psi3","FRASER-Autoencoder psi3",
+                                "FRASER-PCA psi5","FRASER-Autoencoder psi5",
+                                "FRASER-PCA 2.0","FRASER-Autoencoder 2.0"
+                                ))
+```
+
+```{r}
+labels <- expression(paste("saseR junctions"),
+                     paste("FRASER-PCA ", psi[3]),
+                     paste("FRASER-Autoencoder ", psi[3]),
+                     paste("FRASER-PCA ", psi[5]),
+                     paste("FRASER-Autoencoder ", psi[5]),
+                     paste("FRASER-PCA 2.0"),
+                     paste("FRASER-Autoencoder 2.0"))
+
+plot_2 <- ggplot(data = df_pr%>% filter(type == "PRC" & (modname %in% c("saseR junctions",
+                                "FRASER-PCA psi3","FRASER-Autoencoder psi3",
+                                "FRASER-PCA psi5","FRASER-Autoencoder psi5",
+                                "FRASER-PCA 2.0","FRASER-Autoencoder 2.0"))), aes(x = x, y = y, col = modname)) + geom_line() + ggtitle(label = "") + ylab("Precision")  + xlab("Recall") + theme_bw() + 
+  theme(axis.text=element_text(size=10), axis.title=element_text(size=12))  + scale_color_manual(values = 
+                              c(
+                                "saseR junctions" = "#CC79A7",
+                                "FRASER-PCA psi3" = "burlywood1",
+                                "FRASER-Autoencoder psi3" = "red3",
+                                "FRASER-PCA psi5" = "cyan1",
+                                "FRASER-Autoencoder psi5" = "lightcyan4",
+                                "FRASER-PCA 2.0"= "#009E73", 
+                                "FRASER-Autoencoder 2.0" = "#0072B2"
+),
+                                labels = labels
+                              )+ 
+  theme( legend.title = element_blank(),legend.position = "bottom", 
+         legend.text = element_text(size = 12))
+print(plot_2)
+```
+
+
+```{r}
+legend <- get_legend(plot_2)
+prow <- plot_grid(plot_1+ theme(legend.position = "none"), plot_2 + theme(legend.position = "none"),
+                  labels = c("A","B"), ncol = 2,
+                  rel_heights = c(1,1), align = "h")
+Figure_1 <- plot_grid(prow,legend,ncol = 1, rel_heights= c(1,0.1))
+Figure_1
+
+```
+
+
+
+```{r}
+ggsave(paste0(output_directory,"/Supplementary-Figure-10.png"), Figure_1, 
+       device = "png", width = 9, height = 4.5, dpi = 300)
+ggsave(paste0(output_directory,"/Supplementary-Figure-10.eps"), Figure_1, 
+       device = cairo_ps, width = 9, height = 4.5, dpi = 300)
+ggsave(paste0(output_directory,"/Supplementary-Figure-10.pdf"), Figure_1, 
+       device = "pdf", width = 9, height = 4.5, dpi = 300)
+
+```
+
+
+
+
+```{r}
+plot_1 <- ggplot(data = df_results %>% filter(method %in% c("saseR junctions",
+                                                            "saseR jaccard",
+                                          "FRASER-PCA 2.0",
+                                          "FRASER-Autoencoder 2.0",
+                                          "FRASER-PCA psi3",
+                                          "FRASER-Autoencoder psi3",
+                                          "FRASER-PCA psi5",
+                                          "FRASER-Autoencoder psi5")), aes(y = auc, x= method, col = method)) + geom_boxplot(outlier.shape=NA) + geom_jitter() + ylab("Area under the curve per sample") + theme_bw()+ theme(axis.text=element_text(size=12),
+        axis.title=element_text(size=14,face="bold"))  + theme_bw() + ylim(c(0,1.0001)) + theme(legend.position = "none")+
+  theme(axis.text=element_text(size=10), axis.title=element_text(size=12)) + scale_color_manual(values = 
+                              c(
+                                "saseR junctions" = "#CC79A7",
+                                "saseR jaccard" = "#000000",
+                                "FRASER-PCA psi3" = "burlywood1",
+                                "FRASER-Autoencoder psi3" = "red3",
+                                "FRASER-PCA psi5" = "cyan1",
+                                "FRASER-Autoencoder psi5" = "lightcyan4",
+                                "FRASER-PCA 2.0"= "#009E73", 
+                                "FRASER-Autoencoder 2.0" = "#0072B2"
+))+ theme(axis.title.x = element_blank(), axis.text.x = element_blank(), axis.ticks.x = element_blank())
+plot_1
+```
+
+
+
+
+```{r}
+labels <- expression(paste("saseR junctions"),
+                     paste("saseR jaccard"),
+                     paste("FRASER-PCA ", psi[3]),
+                     paste("FRASER-Autoencoder ", psi[3]),
+                     paste("FRASER-PCA ", psi[5]),
+                     paste("FRASER-Autoencoder ", psi[5]),
+                     paste("FRASER-PCA 2.0"),
+                     paste("FRASER-Autoencoder 2.0"))
+
+plot_2 <- ggplot(data = df_pr%>% filter(type == "PRC" & (modname %in% c("saseR junctions", "saseR jaccard",
+                                "FRASER-PCA psi3","FRASER-Autoencoder psi3",
+                                "FRASER-PCA psi5","FRASER-Autoencoder psi5",
+                                "FRASER-PCA 2.0","FRASER-Autoencoder 2.0"))), aes(x = x, y = y, col = modname)) + geom_line() + ggtitle(label = "") + ylab("Precision")  + xlab("Recall") + theme_bw() + 
+  theme(axis.text=element_text(size=10), axis.title=element_text(size=12))  + scale_color_manual(values = 
+                              c(
+                                "saseR junctions" = "#CC79A7",
+                                "saseR jaccard" = "#000000",
+                                "FRASER-PCA psi3" = "burlywood1",
+                                "FRASER-Autoencoder psi3" = "red3",
+                                "FRASER-PCA psi5" = "cyan1",
+                                "FRASER-Autoencoder psi5" = "lightcyan4",
+                                "FRASER-PCA 2.0"= "#009E73", 
+                                "FRASER-Autoencoder 2.0" = "#0072B2"
+),
+                                labels = labels
+                              )+ 
+  theme( legend.title = element_blank(),legend.position = "bottom", 
+         legend.text = element_text(size = 12))
+print(plot_2)
+```
+
+
+```{r}
+legend <- get_legend(plot_2)
+prow <- plot_grid(plot_1+ theme(legend.position = "none"), plot_2 + theme(legend.position = "none"),
+                  labels = c("A","B"), ncol = 2,
+                  rel_heights = c(1,1), align = "h")
+Figure_1 <- plot_grid(prow,legend,ncol = 1, rel_heights= c(1,0.1))
+Figure_1
+
+```
+
+
+
+```{r}
+ggsave(paste0(output_directory,"/Supplementary-Figure-12.png"), Figure_1, 
+       device = "png", width = 9, height = 4.5, dpi = 300)
+ggsave(paste0(output_directory,"/Supplementary-Figure-12.eps"), Figure_1, 
+       device = cairo_ps, width = 9, height = 4.5, dpi = 300)
+ggsave(paste0(output_directory,"/Supplementary-Figure-12.pdf"), Figure_1, 
+       device = "pdf", width = 9, height = 4.5, dpi = 300)
+
+```
+
+
+

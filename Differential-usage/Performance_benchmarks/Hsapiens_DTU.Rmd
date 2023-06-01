@@ -1,0 +1,200 @@
+---
+title: "2_Hsapiens_DTU"
+author: "Jeroen Gilis"
+date: "06/11/2020"
+output: html_document
+---
+
+**In order to run this script (Hsapiens_DTU.Rmd), the dataset**
+**Hsapiens_benchmark_datasets_count.Rdata  is required.** This file can be 
+downloaded from Zenodo.
+
+Here we run the DTU analyses for 5 DTU methods on the Hsapiens benchmark 
+dataset.
+
+**If you do not want to run this script, its output can also be downloaded**
+**from Zenodo: Hsapiens_DTU_results_count.Rdata**
+
+```{r setup, include=FALSE, echo=FALSE}
+require("knitr")
+opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+```
+
+# Load DTU methods
+
+Source file that allows running all seven DTU methods that were assessed in 
+this paper: satuRn, DoubleExpSeq, limma diffsplice, edgeRdiffsplice, DEXSeq, 
+DRIMseq and NBSplice.
+
+```{r, message=FALSE, warning=FALSE}
+### load libraries
+library(edgeR)
+library(DEXSeq)
+library(satuRn)
+library(doMC)
+
+source(file="./Performance_benchmarks/DTU_methods.R")
+```
+
+# Set up parallel execution
+
+Note that the optimal parameter setting for parallelizing the DTU analyses depends on your specific computing system.
+
+```{r}
+nrCores <- 1
+
+if(nrCores != 1) {
+    doParallel <- TRUE
+    doProgress <- 'none'
+
+    registerDoMC(cores = nrCores)
+} else {
+    doParallel <- FALSE
+    doProgress <- 'text'
+}
+```
+
+# Run the analysis for all methods on both Hsapiens datasets
+
+Run the DTU analyses for 7 DTU methods on both Hsapiens benchmark datasets.
+This code runs approximately 30 minutes on a MacBook Pro 2018, processor; 
+2,3 GHz Quad-Core Intel Core i5, 16GB RAM.
+
+```{r}
+### Load benchmark data
+load(file="./Data/Hsapiens_benchmark_datasets_count.Rdata")
+HsBenchmarkLenient <- list(HsBenchmarkLenient)
+names(HsBenchmarkLenient)   <- paste0(names(HsBenchmarkLenient)  , 'filterLenient')
+
+### Run DTU analysis on benchmark data
+print("start satuRn")
+tStart <- Sys.time()
+suppressWarnings(HsDtuBenchmark_satuRn <- plyr::llply(
+    .data = HsBenchmarkLenient,
+    .inform = TRUE,
+    .fun = function(localData) {
+        ### Perform DTU analysis
+        localRes <- satuRn_DTU(
+            countData  = localData$data,
+            tx2gene    = localData$metaInfo,
+            sampleData = localData$design)
+        ### Massage
+        localRes$gene_modified <- localData$metaInfo$gene_modified[match(
+            localRes$TXNAME, localData$metaInfo$TXNAME)]
+        ### Return result
+        return(list(dtuAnalysis = localRes))
+    }
+))
+difftime(Sys.time(), tStart)
+
+print("start edgeR_diffsplice")
+tStart <- Sys.time()
+HsDtuBenchmark_edgeRdiffsplice <- plyr::llply(
+    .data = HsBenchmarkLenient,
+    .parallel = doParallel,
+    .progress = doProgress,
+    .inform = TRUE,
+    .fun = function(localData) {
+        ### Perform DTU analysis
+        localRes <- edgeR_diffsplice_DTU(
+            countData  = localData$data,
+            tx2gene    = localData$metaInfo,
+            sampleData = localData$design)
+        ### Massage
+        localRes$gene_modified <- localData$metaInfo$gene_modified[match(
+            localRes$TXNAME, localData$metaInfo$TXNAME)]
+        ### Return result
+        return(list(dtuAnalysis = localRes))
+    }
+)
+difftime(Sys.time(), tStart)
+
+print("start edgeR_offset")
+tStart <- Sys.time()
+HsDtuBenchmark_edgeR_offset <- plyr::llply(
+    .data = HsBenchmarkLenient,
+    .parallel = doParallel,
+    .progress = doProgress,
+    .inform = TRUE,
+    .fun = function(localData) {
+        ### Perform DTU analysis
+        localRes <- edgeR_offset_DTU(
+            countData  = localData$data,
+            tx2gene    = localData$metaInfo,
+            sampleData = localData$design)
+        ### Massage
+        localRes$gene_modified <- localData$metaInfo$gene_modified[match(
+            localRes$TXNAME, localData$metaInfo$TXNAME)]
+        ### Return result
+        return(list(dtuAnalysis = localRes))
+    })
+difftime(Sys.time(), tStart)
+
+
+print("start DESeq2_offset")
+tStart <- Sys.time()
+
+HsDtuBenchmark_DESeq2_offset <- plyr::llply(
+    .data = HsBenchmarkLenient,
+    .parallel = doParallel,
+    .progress = doProgress,
+    .inform = TRUE,
+    .fun = function(localData) {
+        ### Perform DTU analysis
+        localRes <- DESeq2_offset_DTU(
+            countData  = localData$data,
+            tx2gene    = localData$metaInfo,
+            sampleData = localData$design)
+        ### Massage
+        localRes$gene_modified <- localData$metaInfo$gene_modified[match(
+            localRes$TXNAME, localData$metaInfo$TXNAME)]
+        ### Return result
+        return(list(dtuAnalysis = localRes))
+    })
+difftime(Sys.time(), tStart)
+
+
+print("start DEXSeq")
+tStart <- Sys.time()
+HsDtuBenchmark_DEXSeq <- plyr::llply(
+    .data = HsBenchmarkLenient,
+    .parallel = doParallel,
+    .progress = doProgress,
+    .inform = TRUE,
+    .fun = function(localData) {
+        ### Perform DTU analysis
+        localRes <- DEXSeq_DTU(
+            countData  = localData$data,
+            tx2gene    = localData$metaInfo,
+            sampleData = localData$design)
+        ### Massage
+        localRes$gene_modified <- localData$metaInfo$gene_modified[match(
+            localRes$TXNAME, localData$metaInfo$TXNAME)]
+        ### Return result
+        return(list(dtuAnalysis = localRes))
+    }
+)
+difftime(Sys.time(), tStart)
+
+### add method name to list names for easy post-analysis
+names(HsDtuBenchmark_satuRn) <- paste0('satuRn_', names(HsDtuBenchmark_satuRn))
+names(HsDtuBenchmark_DEXSeq)  <- paste0('DEXSeq_', names(HsDtuBenchmark_DEXSeq))
+names(HsDtuBenchmark_edgeRdiffsplice) <- paste0('edgeR_diffsplice_', names(HsDtuBenchmark_edgeRdiffsplice))
+names(HsDtuBenchmark_edgeR_offset) <- paste0('edgeR_offset_', names(HsDtuBenchmark_edgeR_offset))
+names(HsDtuBenchmark_DESeq2_offset) <- paste0('DESeq2_offset_', names(HsDtuBenchmark_DESeq2_offset))
+
+### Save result
+save(HsDtuBenchmark_satuRn,
+     HsDtuBenchmark_DEXSeq,
+     HsDtuBenchmark_edgeRdiffsplice,
+     HsDtuBenchmark_edgeR_offset,
+     HsDtuBenchmark_DESeq2_offset,
+     file="./Data/Hsapiens_DTU_results_count_new.Rdata")
+```
+
+```{r}
+load("./Data/Hsapiens_DTU_results_count_new.Rdata")
+```
+
+
+

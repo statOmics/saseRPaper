@@ -1,0 +1,3 @@
+load("/Users/alexandresegers/Downloads/Kremer_ODS.RDS")
+load("/Users/alexandresegers/Downloads/Kremer_ODS-2.RDS")
+load("/Users/alexandresegers/Projects/Doctoraat/RUV_Paper/Code/R-code-Analyses/Output_files_3/Output_files/RUV_Analysis_Covariates_Conditional_outliers_Ischemic_time.RDS")

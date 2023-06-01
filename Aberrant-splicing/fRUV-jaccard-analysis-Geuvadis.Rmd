@@ -1,0 +1,115 @@
+---
+title: "Untitled"
+author: "Alex"
+date: "3/9/2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r}
+library(FRASER)
+library(ASpli)
+library(GenomicFeatures)
+library(lubridate)
+library(BiocParallel)
+library(data.table)
+library(SummarizedExperiment)
+library(dplyr)
+library(pracma)
+library(PRROC)
+```
+
+```{r, import arguments}
+args <- (commandArgs(trailingOnly = TRUE))
+for (i in 1:length(args)) {
+  eval(parse(text = args[[i]]))
+}
+
+```
+
+```{r, show arguments}
+print(function_directory)
+print(output_directory)
+print(annotation_directory)
+
+
+```
+
+```{r}
+fds <- loadFraserDataSet(
+          dir = paste0(output_directory,"/Fraser"),
+                  name = "Geuvadis_PCA_jaccard_AE_weighted_results")
+
+txdb <- makeTxDbFromGFF(paste0(annotation_directory,"/Homo_sapiens.GRCh38.42.primary_assembly.protein_coding.gtf"), "gtf")
+
+
+query <- as.data.table(findOverlaps(GRanges(rowRanges(fds)),genes(txdb), select = "all"))
+query <- query[!duplicated(query$queryHits),]
+rowRanges(fds)$gene_symbol <- c(NA)
+rowRanges(fds)$gene_symbol[query$queryHits] <- genes(txdb)$gene_id[query$subjectHits]
+rowRanges(fds)$gene_symbol[is.na(rowRanges(fds)$gene_symbol)] <- "Unavailable_gene"
+
+
+```
+
+```{r}
+source(paste0(function_directory,
+              "/fitRUVMD-aberrant-splicing.R"))
+source(paste0(function_directory, 
+              "/Accessors.R"))
+
+
+```
+
+
+```{r}
+counts <- as.matrix(assays(fds)$rawCountsJ)
+offsets <- as.matrix(assays(fds)$rawCountsJ +
+                       assays(fds)$rawOtherCounts_jaccard)
+counts[offsets == 0] <- 1
+offsets[offsets == 0] <- 1
+colnames(counts) <- paste0("Sample",c(1:39))
+colnames(offsets) <- paste0("Sample",c(1:39))
+rownames(counts) <- paste(seqnames(fds),start(fds),end(fds), sep = "-")
+rownames(offsets) <- paste(seqnames(fds),start(fds),end(fds), sep = "-")
+rowData <- as.data.frame(rowRanges(fds))
+rowData$locus = rowRanges(fds)$gene_symbol
+rownames(rowData) <- paste(seqnames(fds),start(fds),end(fds), sep = "-")
+
+
+jaccard_se <- SummarizedExperiment(assays = SimpleList(
+                                              "counts" = counts,
+                                              "offsets" = offsets),
+                                 metadata = list("design" = ~1),
+                                 colData = list("Names" = paste0("Sample",c(1:39))),
+                                 rowData = list(rowData))
+
+
+
+```
+
+
+
+```{r}
+begin_time <- Sys.time()
+seFindEncDim <- findEncodingDimRUVSplicing(jaccard_se,
+                                  dimensions = seq(1,10,1),
+                                  freq = 10^-2,
+                                  BPPARAM = MulticoreParam(workers = 1))
+
+seFit <- fitRUVMD(se = seFindEncDim, dimensions = metadata(seFindEncDim)$optimalEncDim)
+
+end_time <- Sys.time()
+
+time_analysis <- end_time - begin_time
+
+saveRDS(object = seFit, 
+        file = paste0(output_directory, "/seFit_fRUV_jaccard_Geuvadis.RDS"))
+saveRDS(object = time_analysis, 
+        file = paste0(output_directory, "/Time_fRUV_jaccard_Geuvadis.RDS"))
+
+```
+
+

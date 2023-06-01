@@ -1,0 +1,627 @@
+### This workflow has to be sequentially ran to obtain the results from our manuscript. Be aware that some steps can take a very long time, or need changes regarding the number of processors available. BASEDIR has to be adapted to your local directory.
+
+
+conda env create -f saseRPaper.yml
+conda env create -f rsem.1.3.0.yml
+conda env create -f Fraser.2.0.yml
+
+
+
+
+BASEDIR=/data/gent/vo/000/gvo00063/Alex/saseRPaper
+FUNCTIONDIR=$BASEDIR/R-Functions
+RUNNINGSCRIPTDIR=$BASEDIR/Running-scripts
+DATADIR=$BASEDIR/Data
+GTEx=$DATADIR/GTEx
+GEUVADIS=$DATADIR/Geuvadis
+KREMER=$DATADIR/Kremer
+ABERRANTEXPRESSION=$BASEDIR/Aberrant-expression
+DIFFERENTIALUSAGE=$BASEDIR/Differential-usage
+ABERRANTSPLICING=$BASEDIR/Aberrant-splicing
+FIGURESDIR=$BASEDIR/Figures
+
+
+
+# Downloading data ----------------------------------------------------------------------
+
+## GTEx
+
+conda activate saseRPaper
+cd $GTEx
+
+wget https://storage.googleapis.com/gtex_analysis_v6p/rna_seq_data/GTEx_Analysis_v6p_RNA-seq_RNA-SeQCv1.1.8_gene_reads.gct.gz
+wget https://storage.googleapis.com/gtex_analysis_v6p/annotations/GTEx_Data_V6_Annotations_SampleAttributesDD.xlsx ;
+wget https://storage.googleapis.com/gtex_analysis_v6p/reference/gencode.v19.genes.v6p_model.patched_contigs.gtf.gz
+wget https://storage.googleapis.com/gtex_analysis_v6p/annotations/GTEx_Data_V6_Annotations_SampleAttributesDS.txt
+wget https://storage.googleapis.com/gtex_analysis_v6p/annotations/GTEx_Data_V6_Annotations_SubjectPhenotypesDS.txt
+
+gunzip GTEx_Analysis_v6p_RNA-seq_RNA-SeQCv1.1.8_gene_reads.gct.gz
+gunzip gencode.v19.genes.v6p_model.patched_contigs.gtf.gz
+
+cd $BASEDIR
+
+R --no-save --no-restore-data -e "rmarkdown::render('GTEx_data_preparation.Rmd')" "--args data_directory='$DATADIR' function_directory='$FUNCTIONDIR'"
+
+python
+import pandas as pd
+df = pd.read_csv("./Data/GTEx/GTEx_counts_Marginal_Outliers.csv")
+df_renamed = df.rename(index = df["Unnamed: 0"])
+df_final = df_renamed.drop(columns = "Unnamed: 0")
+df_final.to_csv("./Data/GTEx/GTEx_counts_Marginal_Outliers_pandasdf.csv",index = True, header = True)
+exit()
+
+
+
+
+## Kremer 
+
+cd $KREMER
+
+### Kremer dataset download: https://static-content.springer.com/esm/art%3A10.1038%2Fncomms15824/MediaObjects/41467_2017_BFncomms15824_MOESM390_ESM.txt
+### Metadata Kremer download: https://static-content.springer.com/esm/art%3A10.1038%2Fncomms15824/MediaObjects/41467_2017_BFncomms15824_MOESM397_ESM.txt
+### Kremer mapping requires local running of DATAPREPDIR/Kremer_mapping.Rmd 
+
+curl "https://zenodo.org/record/4271599/files/kremer--hg19--gencode34.tar.gz?download=1" --output kremer--hg19--gencode34.tar.gz #version 3!
+
+gunzip kremer--hg19--gencode34.tar.gz
+tar -xvf kremer--hg19--gencode34.tar
+
+wget https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_34/GRCh37_mapping/gencode.v34lift37.annotation.gtf.gz
+
+cd $BASEDIR
+
+R --no-save --no-restore-data -e "rmarkdown::render('$Kremer/Kremer_data_preparation_aberrant_expression.Rmd')" "--args data_directory='$DATADIR' function_directory='$FUNCTIONDIR'"
+
+R --no-save --no-restore-data -e "rmarkdown::render('$KREMER/Kremer_data_preparation_aberrant_splicing.Rmd')" "--args data_directory='$DATADIR'"
+
+
+conda activate Fraserjaccard
+
+R --no-save --no-restore-data -e "rmarkdown::render('$KREMER/Kremer_data_preparation_aberrant_splicing_jaccard.Rmd')" "--args data_directory='$DATADIR'"
+
+conda activate saseRPaperaper
+
+
+python
+import pandas as pd
+df = pd.read_csv("./Data/Kremer/Kremer_counts.csv")
+df_renamed = df.rename(index = df["Unnamed: 0"])
+df_final = df_renamed.drop(columns = "Unnamed: 0")
+df_final.to_csv("./Data/Kremer/Kremer_counts_pandasdf.csv",index = True, header = True)
+exit()
+
+python
+import pandas as pd
+df = pd.read_csv("./Data/Kremer/Kremer_counts_Marginal_Outliers.csv")
+df_renamed = df.rename(index = df["Unnamed: 0"])
+df_final = df_renamed.drop(columns = "Unnamed: 0")
+df_final.to_csv("./Data/Kremer/Kremer_counts_Marginal_Outliers_pandasdf.csv",index = True, header = True)
+exit()
+
+
+
+
+## Geuvadis
+
+cd $GEUVADIS
+
+cd fastq-files
+for i in {23..62}; do fastq-dump --split-3 ERR1880${i}; done
+
+cd ../Annotation
+wget https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_42/gencode.v42.primary_assembly.annotation.gtf.gz
+wget https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_42/GRCh38.primary_assembly.genome.fa.gz
+gunzip gencode.v42.primary_assembly.annotation.gtf.gz
+gunzip GRCh38.primary_assembly.genome.fa.gz
+
+grep -v "^H" gencode.v42.primary_assembly.annotation.gtf \
+> gencode.v42.primary_assembly.annotation_filter.gtf
+
+grep "protein_coding" gencode.v42.primary_assembly.annotation_filter.gtf \
+> Homo_sapiens.GRCh38.42.primary_assembly.protein_coding.gtf
+
+cd $BASEDIR
+
+conda activate rsem.1.3.0 # change to use rsem
+
+
+rsem-prepare-reference \
+--gtf $GEUVADIS/Annotation/Homo_sapiens.GRCh38.42.primary_assembly.protein_coding.gtf --star -p 16 \
+$GEUVADIS/Annotation/GRCh38.primary_assembly.genome.fa \
+$GEUVADIS/Annotation/Homo_sapiens.GRCh38.42
+
+cd $GEUVADIS/Calculated_expression
+
+
+for i in {23..62}; do \
+	mkdir ERR1880$i ;\
+	rsem-calculate-expression \
+	--paired-end -p 20 --star --seed 1$i \
+	$GEUVADIS/fastq-files/ERR1880${i}_1.fastq $GEUVADIS/fastq-files/ERR1880${i}_2.fastq \
+	$GEUVADIS/Annotation/Homo_sapiens.GRCh38.42 \
+	ERR1880${i}/ERR1880${i} ;\
+done
+
+
+conda activate saseRPaper
+
+cd $BASEDIR
+
+for i in {23..62}; do \
+	Sample=ERR1880${i} ;\
+	R --no-save --no-restore-data -e "rmarkdown::render('$GEUVADIS/Aberrant-splicing-outlier-injection.Rmd')" \
+	"--args data_directory='$GEUVADIS/Calculated_expression/$Sample' sample='$Sample' output_dir='$GEUVADIS/Calculated_expression/$Sample' freq=0.001" ;\
+done
+
+conda activate rsem.1.3.0 # change to use rsem
+
+
+cd $GEUVADIS
+
+for i in {23..62}; do \
+	cd Calculated_expression/ERR1880${i} ;\
+	sed -n '1p' ERR1880${i}.stat/ERR1880${i}.cnt | sed 's/|/ /' | awk '{print $4}' > libary_size.txt ;\
+	sed -n '3p' ERR1880${i}.stat/ERR1880${i}.theta | sed 's/|/ /' | awk '{print $1}' > theta_0.txt ;\
+	library_size=$(<libary_size.txt) ;\
+	theta_0=$(<theta_0.txt) ;\
+	cd ../.. ;\
+	rsem-simulate-reads \
+	Annotation/Homo_sapiens.GRCh38.42 \
+	Calculated_expression/ERR1880${i}/ERR1880${i}.stat/ERR1880${i}.model \
+	Calculated_expression/ERR1880${i}/ERR1880${i}_generation_details.txt \
+	$theta_0 $library_size Calculated_expression/ERR1880${i}/simulated_reads_ERR1880${i} --seed 1${i} ;\
+done
+
+
+cd $BASEDIR
+
+
+STAR --runThreadN 16 --runMode genomeGenerate --genomeDir $GEUVADIS/Annotation/STAR_Annotation/ \
+--genomeFastaFiles $GEUVADIS/Annotation/GRCh38.primary_assembly.genome.fa \
+--sjdbGTFfile $GEUVADIS/Annotation/Homo_sapiens.GRCh38.42.primary_assembly.protein_coding.gtf
+
+
+
+for i in {23..62}; do \
+	STAR --runThreadN 1 --genomeDir $GEUVADIS/Annotation/STAR_Annotation \
+	--outSAMtype BAM SortedByCoordinate \
+	--sjdbGTFfile $GEUVADIS/Annotation/Homo_sapiens.GRCh38.42.primary_assembly.protein_coding.gtf \
+	--sjdbOverhang 100 --readFilesIn $GEUVADIS/Calculated_expression/ERR1880${i}/simulated_reads_ERR1880${i}_1.fq $GEUVADIS/Calculated_expression/ERR1880${i}/simulated_reads_ERR1880${i}_2.fq \
+	--quantMode TranscriptomeSAM GeneCounts --outFileNamePrefix $GEUVADIS/Calculated_expression/ERR1880${i}/simulated_star_alignment_ERR1880${i} ;\	
+done
+
+
+for i in {23..62}; do \
+	samtools index $GEUVADIS/Calculated_expression/ERR1880${i}/simulated_star_alignment_ERR1880${i}Aligned.sortedByCoord.out.bam  $GEUVADIS/Calculated_expression/ERR1880${i}/simulated_star_alignment_ERR1880${i}Aligned.sortedByCoord.out.bam.bai ;\
+done
+
+conda activate saseRPaper
+
+
+R --no-save --no-restore-data -e "rmarkdown::render('$GEUVADIS/ASpli_genome_binning.Rmd')" \
+"--args outputdir='$GEUVADIS/Annotation/features.RDS' cores=10 gtfdir='$GEUVADIS/Annotation/Homo_sapiens.GRCh38.42.primary_assembly.protein_coding.gtf'" 
+
+R --no-save --no-restore-data -e "rmarkdown::render('$GEUVADIS/Bam_to_ASpli_counts.Rmd')" \
+"--args outputdir='$GEUVADIS/ASpli-counts.RDS' datadir='$GEUVADIS' cores=MulticoreParam(workers=10) featuresdir='$GEUVADIS/Annotation/features.RDS' functiondir='$FUNCTIONDIR'" 
+
+R --no-save --no-restore-data -e "rmarkdown::render('$GEUVADIS/Bam_to_Fraser_counts.Rmd')" \
+"--args datadir='$GEUVADIS' cores=MulticoreParam(workers=10)" 
+
+R --no-save --no-restore-data -e "rmarkdown::render('$GEUVADIS/Outlier-gene-matrix-formation.Rmd')" \
+"--args output_directory='$ABERRANTSPLICING/Output_files' data_directory='$GEUVADIS'" 
+
+
+
+## SatuRn data
+
+cd $DIFFERENTIALUSAGE/Data
+
+
+curl "https://zenodo.org/record/6826603/files/Performance_GTEx.zip?download=1" --output Performance_GTEx.zip
+
+curl "https://zenodo.org/record/6826603/files/Scalability_data.zip?download=1" --output Scalability_analysis.zip
+
+curl "https://zenodo.org/record/6826603/files/Performance_Chen.zip?download=1" --output Performance_Chen.zip
+
+curl "https://zenodo.org/record/6826603/files/Performance_Hsapiens.zip?download=1" --output Performance_Hsapiens.zip
+
+unzip Performance_GTEx.zip
+
+unzip Scalability_analysis.zip
+
+unzip Performance_Chen.zip
+
+unzip Performance_Hsapiens.zip
+
+
+mv GTEx/GTEx_benchmark_datasets_count.Rdata ./
+
+mv Chen/Chen_benchmark_datasets_count.Rdata ./
+mv Chen/Chen_metadata.csv ./
+
+mv Performance_Hsapiens/Hsapiens_benchmark_datasets_count.Rdata ./
+mv Performance_Hsapiens/Hsapiens_metadata_1.txt ./
+
+mv Scalability_data/quantsf_counts_bulk.Rds ./
+mv Scalability_data/tx2gene_bulk.Rds ./
+
+
+
+
+# Aberrant expression -------------------------------------------------------------------
+
+## Kremer 
+
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTEXPRESSION/RUV_analysis_script_optimalThreshold.Rmd')" \
+"--args data_directory='$DATADIR/Kremer/Kremer_counts_Marginal_Outliers.RDS' function_directory='$FUNCTIONDIR' output_directory='$ABERRANTEXPRESSION/Output_files/RUV_optimalThreshold_Analysis_Kremer_Marginal_outliers.RDS' design=~1 cores=MulticoreParam(workers=1)"
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTEXPRESSION/Outrider_analysis_script.Rmd')" \
+"--args data_directory='$DATADIR/Kremer/Kremer_counts_Marginal_Outliers.RDS' function_directory='$FUNCTIONDIR' output_directory='$ABERRANTEXPRESSION/Output_files/Outrider_autoencoder_Analysis_Kremer_Marginal_outliers.RDS' autoencoder='autoencoder' cores=MulticoreParam(workers=1)"
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTEXPRESSION/Outrider_analysis_script.Rmd')" \
+"--args data_directory='$DATADIR/Kremer/Kremer_counts_Marginal_Outliers.RDS' function_directory='$FUNCTIONDIR' output_directory='$ABERRANTEXPRESSION/Output_files/Outrider_PCA_Analysis_Kremer_Marginal_outliers.RDS' autoencoder='pca' cores=MulticoreParam(workers=1)"
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTEXPRESSION/RUV_analysis_script.Rmd')" \
+"--args data_directory='$DATADIR/Kremer/Kremer_counts_Marginal_Outliers.RDS' function_directory='$FUNCTIONDIR' output_directory='$ABERRANTEXPRESSION/Output_files/RUV_Analysis_Kremer_Marginal_outliers.RDS' design=~1 cores=MulticoreParam(workers=1)"
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTEXPRESSION/RUV_edgeR_analysis_script.Rmd')" \
+"--args data_directory='$DATADIR/Kremer/Kremer_counts_Marginal_Outliers.RDS' function_directory='$FUNCTIONDIR' output_directory='$ABERRANTEXPRESSION/Output_files/RUV_edgeR_Analysis_Kremer_Marginal_outliers.RDS' cores=MulticoreParam(workers=1)"
+
+(time python $FUNCTIONDIR/outsingle/fast_zscore_estimation.py $KREMER/Kremer_counts_Marginal_Outliers_pandasdf.csv && time python $FUNCTIONDIR/outsingle/optht_svd_zs.py $KREMER/Kremer_counts_Marginal_Outliers_pandasdf-fzse-zs.csv) > ./Aberrant-expression/Output_files/time_OutSingle_Kremer_Marginal_Outliers.txt 2>&1
+mv $KREMER/Kremer_counts_Marginal_Outliers_pandasdf-fzse-zs-svd-optht-zs.csv ./Aberrant-expression/Output_files/Kremer_counts_Marginal_Outliers_pandasdf-fzse-zs-svd-optht-zs.csv
+
+(time python $FUNCTIONDIR/outsingle/fast_zscore_estimation.py $KREMER/Kremer_counts_Marginal_Outliers_pandasdf.csv && time python $FUNCTIONDIR/outsingle/optht_svd_zs.py $KREMER/Kremer_counts_Marginal_Outliers_pandasdf-fzse-zs.csv) > ./Aberrant-expression/Output_files/time_OutSingle_Kremer_Marginal_Outliers_testingttt.txt 2>&1
+
+## GTEx 
+
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTEXPRESSION/RUV_analysis_script_optimalThreshold.Rmd')" \
+"--args data_directory='$DATADIR/GTEx/GTEx_counts_Marginal_Outliers.RDS' function_directory='$FUNCTIONDIR' output_directory='$ABERRANTEXPRESSION/Output_files/RUV_optimalThreshold_Analysis_GTEx_Marginal_outliers.RDS' design=~1 cores=MulticoreParam(workers=1)"
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTEXPRESSION/RUV_edgeR_analysis_script.Rmd')" \
+"--args data_directory='$DATADIR/GTEx/GTEx_counts_Marginal_Outliers.RDS' function_directory='$FUNCTIONDIR' output_directory='$ABERRANTEXPRESSION/Output_files/RUV_edgeR_Analysis_GTEx_Marginal_outliers.RDS' cores=MulticoreParam(workers=1)"
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTEXPRESSION/RUV_analysis_script.Rmd')" \
+"--args data_directory='$DATADIR/GTEx/GTEx_counts_Marginal_Outliers.RDS' function_directory='$FUNCTIONDIR' output_directory='$ABERRANTEXPRESSION/Output_files/RUV_Analysis_GTEx_Marginal_outliers.RDS' design=~1 cores=MulticoreParam(workers=1)"
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTEXPRESSION/Outrider_analysis_script.Rmd')" \
+"--args data_directory='$DATADIR/GTEx/GTEx_counts_Marginal_Outliers.RDS' function_directory='$FUNCTIONDIR' output_directory='$ABERRANTEXPRESSION/Output_files/Outrider_PCA_Analysis_GTEx_Marginal_outliers.RDS' autoencoder='pca' cores=MulticoreParam(workers=1)"
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTEXPRESSION/Outrider_analysis_script_in_parts.Rmd')" \
+"--args data_directory='$DATADIR/GTEx/GTEx_counts_Marginal_Outliers.RDS' function_directory='$FUNCTIONDIR' output_directory='$ABERRANTEXPRESSION/Output_files/Outrider_autoencoder_Analysis_GTEx_Marginal_outliers_in_parts_1.RDS' autoencoder='autoencoder' cores=MulticoreParam(workers=1) params=seq(2,50,2)"
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTEXPRESSION/Outrider_analysis_script_in_parts.Rmd')" \
+"--args data_directory='$DATADIR/GTEx/GTEx_counts_Marginal_Outliers.RDS' function_directory='$FUNCTIONDIR' output_directory='$ABERRANTEXPRESSION/Output_files/Outrider_autoencoder_Analysis_GTEx_Marginal_outliers_in_parts_2.RDS' autoencoder='autoencoder' cores=MulticoreParam(workers=1) params=seq(52,100,2)"
+
+(time python $FUNCTIONDIR/outsingle/fast_zscore_estimation.py $GTEx/GTEx_counts_Marginal_Outliers_pandasdf.csv && time python $FUNCTIONDIR/outsingle/optht_svd_zs.py $GTEx/GTEx_counts_Marginal_Outliers_pandasdf-fzse-zs.csv) > ./Aberrant-expression/Output_files/time_OutSingle.txt 2>&1
+mv $GTEx/GTEx_counts_Marginal_Outliers_pandasdf-fzse-zs-svd-optht-zs.csv ./Aberrant-expression/Output_files/GTEx_counts_Marginal_Outliers_pandasdf-fzse-zs-svd-optht-zs.csv
+
+
+
+## Covariate specific 
+
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTEXPRESSION/RUV_analysis_script.Rmd')" \
+"--args data_directory='$DATADIR/GTEx/GTEx_counts_Conditional_Outliers_Ischemic_time.RDS' function_directory='$FUNCTIONDIR' output_directory='$ABERRANTEXPRESSION/Output_files/RUV_Analysis_Conditional_outliers_Ischemic_time.RDS' design=~1 cores=MulticoreParam(workers=1)"
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTEXPRESSION/RUV_analysis_script.Rmd')" \
+"--args data_directory='$DATADIR/GTEx/GTEx_counts_Conditional_Outliers_Sex.RDS' function_directory='$FUNCTIONDIR' output_directory='$ABERRANTEXPRESSION/Output_files/RUV_Analysis_Conditional_outliers_Sex_with_covariates.RDS' design=~SEX cores=MulticoreParam(workers=1)"
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTEXPRESSION/RUV_analysis_script.Rmd')" \
+"--args data_directory='$DATADIR/GTEx/GTEx_counts_Conditional_Outliers_Ischemic_time.RDS' function_directory='$FUNCTIONDIR' output_directory='$ABERRANTEXPRESSION/Output_files/RUV_Analysis_Conditional_outliers_Ischemic_time_with_covariates.RDS' design=~DEATH cores=MulticoreParam(workers=1)"
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTEXPRESSION/RUV_analysis_script.Rmd')" \
+"--args data_directory='$DATADIR/GTEx/GTEx_counts_Conditional_Outliers_Sex.RDS' function_directory='$FUNCTIONDIR' output_directory='$ABERRANTEXPRESSION/Output_files/RUV_Analysis_Conditional_outliers_Sex.RDS' design=~1 cores=MulticoreParam(workers=1)"
+
+
+## Case study 
+
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTEXPRESSION/RUV_analysis_script_optimalThreshold.Rmd')" \
+ "--args data_directory='$DATADIR/Kremer/Kremer_counts.RDS' function_directory='$FUNCTIONDIR' output_directory='$ABERRANTEXPRESSION/Output_files/RUV_optimalThreshold_Analysis_Case_study.RDS' design=~1 cores=MulticoreParam(workers=1)"
+ 
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTEXPRESSION/RUV_analysis_script.Rmd')" \
+ "--args data_directory='$DATADIR/Kremer/Kremer_counts.RDS' function_directory='$FUNCTIONDIR' output_directory='$ABERRANTEXPRESSION/Output_files/RUV_Analysis_Case_study.RDS' design=~1 cores=MulticoreParam(workers=1)"
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTEXPRESSION/Outrider_analysis_script.Rmd')" \
+"--args data_directory='$DATADIR/Kremer/Kremer_counts.RDS' function_directory='$FUNCTIONDIR' output_directory='$ABERRANTEXPRESSION/Output_files/Outrider_PCA_Analysis_Case_study.RDS' autoencoder='pca' cores=MulticoreParam(workers=1)"
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTEXPRESSION/Outrider_analysis_script.Rmd')" \
+"--args data_directory='$DATADIR/Kremer/Kremer_counts_Marginal_Outliers.RDS' function_directory='$FUNCTIONDIR' output_directory='$ABERRANTEXPRESSION/Output_files/Outrider_PCA_Analysis_Kremer_Marginal_outliers.RDS' autoencoder='pca' cores=MulticoreParam(workers=1)"
+
+(time python $FUNCTIONDIR/outsingle/fast_zscore_estimation.py $KREMER/Kremer_counts_pandasdf.csv && time python $FUNCTIONDIR/outsingle/optht_svd_zs.py $KREMER/Kremer_counts_pandasdf-fzse-zs.csv) > ./Aberrant-expression/Output_files/time_OutSingle_Kremer_Disease.txt 2>&1
+mv $KREMER/Kremer_counts_pandasdf-fzse-zs-svd-optht-zs.csv ./Aberrant-expression/Output_files/Kremer_counts_pandasdf-fzse-zs-svd-optht-zs.csv
+
+
+## Computational benchmarks
+
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTEXPRESSION/RUV_edgeR_Computational_time_latent_factors.Rmd')" \
+"--args data_directory='$DATADIR/GTEx/GTEx_counts_Marginal_Outliers.RDS' function_directory='$FUNCTIONDIR' output_directory='$ABERRANTEXPRESSION/Output_files/RUV_edgeR_Analysis_Computational_time_confounders_5-160.RDS' number_of_confounders=seq(5,160,5) cores=MulticoreParam(workers=1)"
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTEXPRESSION/RUV_edgeR_Computational_time_latent_factors.Rmd')" \
+"--args data_directory='$DATADIR/GTEx/GTEx_counts_Marginal_Outliers.RDS' function_directory='$FUNCTIONDIR' output_directory='$ABERRANTEXPRESSION/Output_files/RUV_edgeR_Analysis_Computational_time_confounders_165-200.RDS' number_of_confounders=seq(165,200,5) cores=MulticoreParam(workers=1)"
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTEXPRESSION/Outrider_Computational_time_latent_factors.Rmd')" \
+"--args data_directory='$DATADIR/GTEx/GTEx_counts_Marginal_Outliers.RDS' function_directory='$FUNCTIONDIR' output_directory='$ABERRANTEXPRESSION/Output_files/Outrider_autoencoder_Analysis_Computational_time_confounders_1.RDS' autoencoder='autoencoder' number_of_confounders=seq(5,100,5) cores=MulticoreParam(workers=1)"
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTEXPRESSION/Outrider_Computational_time_latent_factors.Rmd')" \
+"--args data_directory='$DATADIR/GTEx/GTEx_counts_Marginal_Outliers.RDS' function_directory='$FUNCTIONDIR' output_directory='$ABERRANTEXPRESSION/Output_files/Outrider_autoencoder_Analysis_Computational_time_confounders_2.RDS' autoencoder='autoencoder' number_of_confounders=seq(105,200,5) cores=MulticoreParam(workers=1)"
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTEXPRESSION/Outrider_Computational_time_latent_factors.Rmd')" \
+"--args data_directory='$DATADIR/GTEx/GTEx_counts_Marginal_Outliers.RDS' function_directory='$FUNCTIONDIR' output_directory='$ABERRANTEXPRESSION/Output_files/Outrider_PCA_Analysis_Computational_time_confounders.RDS' autoencoder='pca' number_of_confounders=seq(5,200,5) cores=MulticoreParam(workers=1)"
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTEXPRESSION/RUV_Computational_time_latent_factors.Rmd')" \
+"--args data_directory='$DATADIR/GTEx/GTEx_counts_Marginal_Outliers.RDS' function_directory='$FUNCTIONDIR' output_directory='$ABERRANTEXPRESSION/Output_files/RUV_Analysis_Computational_time_confounders.RDS' number_of_confounders=seq(5,200,5) cores=MulticoreParam(workers=1)"
+
+
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTEXPRESSION/RUV_edgeR_Computational_time_number_genes.Rmd')" \
+"--args data_directory='$DATADIR/GTEx/GTEx_counts_Marginal_Outliers.RDS' function_directory='$FUNCTIONDIR' output_directory='$ABERRANTEXPRESSION/Output_files/RUV_edgeR_Analysis_Computational_time_genes.RDS' number_of_genes=seq(1000,17000,1000) cores=MulticoreParam(workers=1)"
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTEXPRESSION/RUV_Computational_time_number_genes.Rmd')" \
+"--args data_directory='$DATADIR/GTEx/GTEx_counts_Marginal_Outliers.RDS' function_directory='$FUNCTIONDIR' output_directory='$ABERRANTEXPRESSION/Output_files/RUV_Analysis_Computational_time_genes.RDS' number_of_genes=seq(1000,17000,1000) cores=MulticoreParam(workers=1)"
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTEXPRESSION/Outrider_Computational_time_number_genes.Rmd')" \
+"--args data_directory='$DATADIR/GTEx/GTEx_counts_Marginal_Outliers.RDS' function_directory='$FUNCTIONDIR' output_directory='$ABERRANTEXPRESSION/Output_files/Outrider_PCA_Analysis_Computational_time_genes.RDS' autoencoder='pca' number_of_genes=seq(1000,17000,1000) cores=MulticoreParam(workers=1)"
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTEXPRESSION/Outrider_Computational_time_number_genes.Rmd')" \
+"--args data_directory='$DATADIR/GTEx/GTEx_counts_Marginal_Outliers.RDS' function_directory='$FUNCTIONDIR' output_directory='$ABERRANTEXPRESSION/Output_files/Outrider_autoencoder_Analysis_Computational_time_genes.RDS' autoencoder='autoencoder' number_of_genes=seq(1000,17000,1000) cores=MulticoreParam(workers=1)"
+
+
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTEXPRESSION/RUV_edgeR_Computational_time_number_patients.Rmd')" \
+"--args data_directory='$DATADIR/GTEx/GTEx_counts_Marginal_Outliers.RDS' function_directory='$FUNCTIONDIR' output_directory='$ABERRANTEXPRESSION/Output_files/RUV_edgeR_Analysis_Computational_time_patients.RDS' number_of_patients=seq(60,220,20) cores=MulticoreParam(workers=1)"
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTEXPRESSION/RUV_Computational_time_number_patients.Rmd')" \
+"--args data_directory='$DATADIR/GTEx/GTEx_counts_Marginal_Outliers.RDS' function_directory='$FUNCTIONDIR' output_directory='$ABERRANTEXPRESSION/Output_files/RUV_Analysis_Computational_time_patients.RDS' number_of_patients=seq(60,220,20) cores=MulticoreParam(workers=1)"
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTEXPRESSION/Outrider_Computational_time_number_patients.Rmd')" \
+"--args data_directory='$DATADIR/GTEx/GTEx_counts_Marginal_Outliers.RDS' function_directory='$FUNCTIONDIR' output_directory='$ABERRANTEXPRESSION/Output_files/Outrider_autoencoder_Analysis_Computational_time_patients.RDS' autoencoder='autoencoder' number_of_patients=seq(60,220,20) cores=MulticoreParam(workers=1)"
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTEXPRESSION/Outrider_Computational_time_number_patients.Rmd')" \
+"--args data_directory='$DATADIR/GTEx/GTEx_counts_Marginal_Outliers.RDS' function_directory='$FUNCTIONDIR' output_directory='$ABERRANTEXPRESSION/Output_files/Outrider_PCA_Analysis_Computational_time_patients.RDS' autoencoder='pca' number_of_patients=seq(60,220,20) cores=MulticoreParam(workers=1)"
+
+
+
+
+# Differential splicing
+
+
+cd $BASEDIR/Differential-usage/Scalability_benchmark
+
+./runtime
+
+cd $BASEDIR
+
+R --no-save --no-restore-data -e "rmarkdown::render('$BASEDIR/Differential-usage/Performance_benchmarks/Gtex_DTU.Rmd')"
+R --no-save --no-restore-data -e "rmarkdown::render('$BASEDIR/Differential-usage/Performance_benchmarks/Hsapiens_DTU.Rmd')"
+R --no-save --no-restore-data -e "rmarkdown::render('$BASEDIR/Differential-usage/Performance_benchmarks/Chen_DTU.Rmd')"
+
+
+
+# Aberrant splicing 
+
+## Geuvadis
+
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTSPLICING/fRUV-threshold-Bins-full-analysis-Geuvadis.Rmd')" \
+"--args output_directory='$ABERRANTSPLICING/Output_files' data_directory='$DATADIR' function_directory='$FUNCTIONDIR'" 
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTSPLICING/fRUV-threshold-Junctions-genes-full-analysis-Geuvadis.Rmd')" \
+"--args output_directory='$ABERRANTSPLICING/Output_files' data_directory='$DATADIR' function_directory='$FUNCTIONDIR'" 
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTSPLICING/fRUV-threshold-Junctions-full-analysis-Geuvadis.Rmd')" \
+"--args output_directory='$ABERRANTSPLICING/Output_files' data_directory='$DATADIR' function_directory='$FUNCTIONDIR'" 
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTSPLICING/fRUV-threshold-jaccard-analysis-Geuvadis.Rmd')" \
+"--args output_directory='$ABERRANTSPLICING/Output_files' function_directory='$FUNCTIONDIR' annotation_directory='$GEUVADIS/Annotation'" 
+
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTSPLICING/fRUV-Bins-full-analysis-Geuvadis.Rmd')" \
+"--args output_directory='$ABERRANTSPLICING/Output_files' data_directory='$DATADIR' function_directory='$FUNCTIONDIR'" 
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTSPLICING/fRUV-Junctions-genes-full-analysis-Geuvadis.Rmd')" \
+"--args output_directory='$ABERRANTSPLICING/Output_files' data_directory='$DATADIR' function_directory='$FUNCTIONDIR'" 
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTSPLICING/fRUV-Junctions-full-analysis-Geuvadis.Rmd')" \
+"--args output_directory='$ABERRANTSPLICING/Output_files' data_directory='$DATADIR' function_directory='$FUNCTIONDIR'" 
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTSPLICING/fRUV-jaccard-analysis-Geuvadis.Rmd')" \
+"--args output_directory='$ABERRANTSPLICING/Output_files' function_directory='$FUNCTIONDIR' annotation_directory='$GEUVADIS/Annotation'" 
+
+
+
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTSPLICING/Fraser-PCA-full-Analysis-Geuvadis.Rmd')" \
+"--args output_directory='$ABERRANTSPLICING/Output_files' data_directory='$DATADIR'" 
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTSPLICING/Fraser-PCA-BB-Decoder-Analysis-Geuvadis.Rmd')" \
+"--args output_directory='$ABERRANTSPLICING/Output_files' data_directory='$DATADIR'" 
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTSPLICING/Fraser-PCA-AE-weighted-Analysis-Geuvadis.Rmd')" \
+"--args output_directory='$ABERRANTSPLICING/Output_files' data_directory='$DATADIR'" 
+
+
+
+conda activate Fraserjaccard
+cd $ABERRANTSPLICING
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTSPLICING/Fraser-PCA-jaccard-full-Analysis-Geuvadis.Rmd')" \
+"--args output_directory='$ABERRANTSPLICING/Output_files' data_directory='$DATADIR'" 
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTSPLICING/Fraser-PCA-Jaccard-BB-Decoder-Analysis-Geuvadis.Rmd')" \
+"--args output_directory='$ABERRANTSPLICING/Output_files' data_directory='$DATADIR'" 
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTSPLICING/Fraser-PCA-Jaccard-AE-weighted-Analysis-Geuvadis.Rmd')" \
+"--args output_directory='$ABERRANTSPLICING/Output_files' data_directory='$DATADIR'" 
+
+
+
+## Kremer Jaccard outliers
+
+conda activate saseRPaper
+cd $BASEDIR
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTSPLICING/fRUV-threshold-Junctions-genes-full-analysis-Kremer-jaccard-outliers.Rmd')" \
+"--args output_directory='$ABERRANTSPLICING/Output_files' data_directory='$DATADIR' function_directory='$FUNCTIONDIR'" 
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTSPLICING/fRUV-threshold-jaccard-analysis-Kremer-jaccard-outliers.Rmd')" \
+"--args output_directory='$ABERRANTSPLICING/Output_files' function_directory='$FUNCTIONDIR'" 
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTSPLICING/fRUV-Junctions-genes-full-analysis-Kremer-jaccard-outliers.Rmd')" \
+"--args output_directory='$ABERRANTSPLICING/Output_files' data_directory='$DATADIR' function_directory='$FUNCTIONDIR'" 
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTSPLICING/fRUV-jaccard-analysis-Kremer-jaccard-outliers.Rmd')" \
+"--args output_directory='$ABERRANTSPLICING/Output_files' function_directory='$FUNCTIONDIR'" 
+
+
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTSPLICING/Fraser-PCA-full-Analysis-jaccard-outliers-psi5.Rmd')" \
+"--args output_directory='$ABERRANTSPLICING/Output_files' data_directory='$DATADIR'" 
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTSPLICING/Fraser-PCA-full-Analysis-jaccard-outliers-psi3.Rmd')" \
+"--args output_directory='$ABERRANTSPLICING/Output_files' data_directory='$DATADIR'" 
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTSPLICING/Fraser-PCA-AE-Analysis-jaccard-outliers-psi5.Rmd')" \
+"--args output_directory='$ABERRANTSPLICING/Output_files'" 
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTSPLICING/Fraser-PCA-AE-Analysis-jaccard-outliers-psi3.Rmd')" \
+"--args output_directory='$ABERRANTSPLICING/Output_files'" 
+
+conda activate Fraserjaccard
+cd $ABERRANTSPLICING
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTSPLICING/Fraser-PCA-full-Analysis-jaccard-outliers.Rmd')" \
+"--args output_directory='$ABERRANTSPLICING/Output_files' data_directory='$DATADIR'" 
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTSPLICING/Fraser-PCA-AE-full-Analysis-jaccard-outliers.Rmd')" \
+"--args output_directory='$ABERRANTSPLICING/Output_files'" 
+
+## Case Study
+
+conda activate saseRPaper
+cd $BASEDIR
+
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTSPLICING/fRUV-threshold-Junctions-genes-full-analysis-Kremer-disease.Rmd')" \
+"--args output_directory='$ABERRANTSPLICING/Output_files' data_directory='$DATADIR' function_directory='$FUNCTIONDIR'" 
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTSPLICING/fRUV-Junctions-genes-full-analysis-Kremer-disease.Rmd')" \
+"--args output_directory='$ABERRANTSPLICING/Output_files' data_directory='$DATADIR' function_directory='$FUNCTIONDIR'" 
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTSPLICING/fRUV-threshold-jaccard-analysis-Kremer-disease.Rmd')" \
+"--args output_directory='$ABERRANTSPLICING/Output_files' function_directory='$FUNCTIONDIR'" 
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTSPLICING/fRUV-jaccard-analysis-Kremer-disease.Rmd')" \
+"--args output_directory='$ABERRANTSPLICING/Output_files' function_directory='$FUNCTIONDIR'" 
+
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTSPLICING/Fraser-PCA-full-Analysis-Kremer-disease.Rmd')" \
+"--args output_directory='$ABERRANTSPLICING/Output_files' data_directory='$DATADIR'" 
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTSPLICING/Fraser-PCA-AE-Analysis-Kremer-disease.Rmd')" \
+"--args output_directory='$ABERRANTSPLICING/Output_files' data_directory='$DATADIR'" 
+
+conda activate Fraserjaccard
+cd $ABERRANTSPLICING
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTSPLICING/Fraser-PCA-jaccard-full-Analysis-Kremer-disease.Rmd')" \
+"--args output_directory='$ABERRANTSPLICING/Output_files' data_directory='$DATADIR'" 
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTSPLICING/Fraser-PCA-Jaccard-AE-weighted-Analysis-Kremer-disease.Rmd')" \
+"--args output_directory='$ABERRANTSPLICING/Output_files' data_directory='$DATADIR'"
+
+
+
+## Iterations
+
+conda activate saseRPaper
+cd $BASEDIR
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTSPLICING/fRUV-0-iter-Bins-full-analysis-Geuvadis.Rmd')" \
+"--args output_directory='$ABERRANTSPLICING/Output_files' data_directory='$DATADIR' function_directory='$FUNCTIONDIR'" 
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTSPLICING/fRUV-1-iter-Bins-full-analysis-Geuvadis.Rmd')" \
+"--args output_directory='$ABERRANTSPLICING/Output_files' data_directory='$DATADIR' function_directory='$FUNCTIONDIR'" 
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTSPLICING/fRUV-3-iter-Bins-full-analysis-Geuvadis.Rmd')" \
+"--args output_directory='$ABERRANTSPLICING/Output_files' data_directory='$DATADIR' function_directory='$FUNCTIONDIR'" 
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTSPLICING/fRUV-edgeR-Bins-full-analysis-Geuvadis.Rmd')" \
+"--args output_directory='$ABERRANTSPLICING/Output_files' data_directory='$DATADIR' function_directory='$FUNCTIONDIR'" 
+
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTSPLICING/fRUV-0-iter-Junctions-full-analysis-Geuvadis.Rmd')" \
+"--args output_directory='$ABERRANTSPLICING/Output_files' data_directory='$DATADIR' function_directory='$FUNCTIONDIR'" 
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTSPLICING/fRUV-1-iter-Junctions-full-analysis-Geuvadis.Rmd')" \
+"--args output_directory='$ABERRANTSPLICING/Output_files' data_directory='$DATADIR' function_directory='$FUNCTIONDIR'" 
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTSPLICING/fRUV-3-iter-Junctions-full-analysis-Geuvadis.Rmd')" \
+"--args output_directory='$ABERRANTSPLICING/Output_files' data_directory='$DATADIR' function_directory='$FUNCTIONDIR'" 
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTSPLICING/fRUV-edgeR-Junctions-full-analysis-Geuvadis.Rmd')" \
+"--args output_directory='$ABERRANTSPLICING/Output_files' data_directory='$DATADIR' function_directory='$FUNCTIONDIR'" 
+
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTSPLICING/fRUV-0-iter-Junctions-genes-analysis-Geuvadis.Rmd')" \
+"--args output_directory='$ABERRANTSPLICING/Output_files' data_directory='$DATADIR' function_directory='$FUNCTIONDIR'"
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTSPLICING/fRUV-1-iter-Junctions-genes-analysis-Geuvadis.Rmd')" \
+"--args output_directory='$ABERRANTSPLICING/Output_files' data_directory='$DATADIR' function_directory='$FUNCTIONDIR'" 
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTSPLICING/fRUV-3-iter-Junctions-genes-analysis-Geuvadis.Rmd')" \
+"--args output_directory='$ABERRANTSPLICING/Output_files' data_directory='$DATADIR' function_directory='$FUNCTIONDIR'" 
+
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTSPLICING/fRUV-edgeR-Junctions-genes-analysis-Geuvadis.Rmd')" \
+"--args output_directory='$ABERRANTSPLICING/Output_files' data_directory='$DATADIR' function_directory='$FUNCTIONDIR'" 
+
+
+
+# Figures
+
+R --no-save --no-restore-data -e "rmarkdown::render('$BASEDIR/Differential-usage/Figures/figures_paper.Rmd')" \
+"--args output_directory='$FIGURESDIR/Output_files'" 
+
+R --no-save --no-restore-data -e "rmarkdown::render('$FIGURESDIR/Figure-GTEx-results.Rmd')" \
+"--args output_directory='$FIGURESDIR/Output_files' data_directory='$ABERRANTEXPRESSION/Output_files'" 
+
+R --no-save --no-restore-data -e "rmarkdown::render('$FIGURESDIR/Figure-Aberrant-splicing.Rmd')" \
+"--args output_directory='$FIGURESDIR/Output_files' data_directory='$ABERRANTSPLICING/Output_files' annotation_directory='$DATADIR/Geuvadis/Annotation' geuvadis_directory='$GEUVADIS'" 
+
+R --no-save --no-restore-data -e "rmarkdown::render('$FIGURESDIR/Supplementary-Figures-Aberrant-expression-known-covariates.Rmd')" \
+"--args output_directory='$FIGURESDIR/Output_files' data_directory='$ABERRANTEXPRESSION/Output_files'" 
+
+R --no-save --no-restore-data -e "rmarkdown::render('$FIGURESDIR/Supplementary-Figures-Aberrant-expression-Scalability.Rmd')" \
+"--args output_directory='$FIGURESDIR/Output_files' data_directory='$ABERRANTEXPRESSION/Output_files'" 
+
+R --no-save --no-restore-data -e "rmarkdown::render('$FIGURESDIR/Supplementary-Figures-Convergence-filter.Rmd')" \
+"--args output_directory='$FIGURESDIR/Output_files' data_directory='$ABERRANTSPLICING/Output_files' annotation_directory='$DATADIR/Geuvadis/Annotation' geuvadis_directory='$GEUVADIS'" 
+
+R --no-save --no-restore-data -e "rmarkdown::render('$FIGURESDIR/Supplementary-Figures-Kremer-Aberrant-expression.Rmd')" \
+"--args output_directory='$FIGURESDIR/Output_files' data_directory='$ABERRANTEXPRESSION/Output_files'" 
+
+R --no-save --no-restore-data -e "rmarkdown::render('$FIGURESDIR/Supplementary-Figures-Geuvadis-filtered-outliers-added.Rmd')" \
+"--args output_directory='$FIGURESDIR/Output_files' data_directory='$ABERRANTSPLICING/Output_files' annotation_directory='$DATADIR/Geuvadis/Annotation' geuvadis_directory='$GEUVADIS'" 
+
+R --no-save --no-restore-data -e "rmarkdown::render('$FIGURESDIR/Supplementary-Figures-Geuvadis-hyperparameters.Rmd')" \
+"--args output_directory='$FIGURESDIR/Output_files' data_directory='$ABERRANTSPLICING/Output_files' annotation_directory='$DATADIR/Geuvadis/Annotation' geuvadis_directory='$GEUVADIS'" 
+
+R --no-save --no-restore-data -e "rmarkdown::render('$FIGURESDIR/Supplementary-Figures-Geuvadis-intersection.Rmd')" \
+"--args output_directory='$FIGURESDIR/Output_files' data_directory='$ABERRANTSPLICING/Output_files' annotation_directory='$DATADIR/Geuvadis/Annotation' geuvadis_directory='$GEUVADIS'" 
+
+R --no-save --no-restore-data -e "rmarkdown::render('$FIGURESDIR/Supplementary-Figures-Iterations.Rmd')" \
+"--args output_directory='$FIGURESDIR/Output_files' data_directory='$ABERRANTSPLICING/Output_files' annotation_directory='$DATADIR/Geuvadis/Annotation' geuvadis_directory='$GEUVADIS'" 
+
+R --no-save --no-restore-data -e "rmarkdown::render('$FIGURESDIR/Supplementary-Figures-Kremer-jaccard-outliers-filtered-outliers-added.Rmd')" \
+"--args output_directory='$FIGURESDIR/Output_files' data_directory='$ABERRANTSPLICING/Output_files'" 
+
+R --no-save --no-restore-data -e "rmarkdown::render('$FIGURESDIR/Table-1-Kremer-disease-genes.Rmd')" \
+"--args data_directory_1='$ABERRANTEXPRESSION/Output_files' data_directory_2='$ABERRANTSPLICING/Output_files'" 
+
+R --no-save --no-restore-data -e "rmarkdown::render('$FIGURESDIR/Supplementary-Table-Kremer-disease-genes.Rmd')" \
+"--args data_directory_1='$ABERRANTEXPRESSION/Output_files' data_directory_2='$ABERRANTSPLICING/Output_files'" 
+
+

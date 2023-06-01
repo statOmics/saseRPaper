@@ -1,0 +1,529 @@
+---
+title: "Untitled"
+author: "Alex"
+date: "3/9/2023"
+output: html_document
+---
+
+
+```{r}
+library(FRASER)
+library(data.table)
+library(ggplot2)
+library(precrec)
+library(GenomicFeatures)
+library(dplyr)
+library(patchwork)
+library(ggpubr)
+library(cowplot)
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, import arguments}
+args <- (commandArgs(trailingOnly = TRUE))
+for (i in 1:length(args)) {
+  eval(parse(text = args[[i]]))
+}
+
+```
+
+```{r}
+print(data_directory)
+print(output_directory)
+print(annotation_directory)
+print(geuvadis_directory)
+
+```
+
+
+
+
+```{r}
+ASpli_counts <- readRDS(file = paste0(geuvadis_directory, "/ASpli-counts.RDS"))
+
+fRUV_bins <- readRDS(file = paste0(data_directory, "/seFit_fRUV_bins_Geuvadis.RDS"))
+
+fRUV_junctions <- readRDS(file = paste0(data_directory, "/seFit_fRUV_junctions_Geuvadis.RDS"))
+
+Fraser_analysis_PCA <- loadFraserDataSet(dir = paste0(data_directory, "/Fraser"),
+                            name = "Geuvadis_PCA_results")
+
+Fraser_analysis_BB <- loadFraserDataSet(dir = paste0(data_directory, "/Fraser"),
+                            name = "Geuvadis_PCA_BB_Decoder_results")
+
+Fraser_analysis_AE <- loadFraserDataSet(dir = paste0(data_directory, "/Fraser"),
+                            name = "Geuvadis_PCA_AE_weighted_results")
+
+Fraser_analysis_PCA_jaccard <- loadFraserDataSet(dir = paste0(data_directory, "/Fraser"),
+                            name = "Geuvadis_PCA_results_Jaccard")
+
+Fraser_analysis_BB_jaccard <- loadFraserDataSet(dir = paste0(data_directory, "/Fraser"),
+                            name = "Geuvadis_PCA_jaccard_PCA_BB_Decoder_results")
+
+Fraser_analysis_AE_jaccard <- loadFraserDataSet(dir = paste0(data_directory, "/Fraser"),
+                            name = "Geuvadis_PCA_jaccard_AE_weighted_results")
+
+fRUV_jaccard <- readRDS(file = paste0(data_directory, "/seFit_fRUV_jaccard_Geuvadis.RDS"))
+
+
+```
+
+```{r}
+outliers <- readRDS(
+  file = paste0(data_directory, "/Geuvadis_outlier_genes.RDS"))
+unique_outliers <- outliers[!duplicated(rownames(outliers)),]
+
+```
+
+```{r}
+txdb <- makeTxDbFromGFF(paste0(annotation_directory,"/Homo_sapiens.GRCh38.42.primary_assembly.protein_coding.gtf"), "gtf")
+```
+
+
+
+```{r}
+pvalues_Fraser_BB_psi3 <- pVals(fds = Fraser_analysis_BB, type = "psi3")
+pvalues_Fraser_BB_psi5 <- pVals(fds = Fraser_analysis_BB, type = "psi5")
+
+pvalues_Fraser_BB_psi3_converged <- pVals(fds = Fraser_analysis_BB, type = "psi3")[rowData(Fraser_analysis_BB)$FitDMessage_psi3 != "ERROR: ABNORMAL_TERMINATION_IN_LNSRCH",]
+pvalues_Fraser_BB_psi5_converged <- pVals(fds = Fraser_analysis_BB, type = "psi5")[rowData(Fraser_analysis_BB)$FitDMessage_psi5 != "ERROR: ABNORMAL_TERMINATION_IN_LNSRCH",]
+
+pvalues_Fraser_AE_psi3 <-pVals(fds = Fraser_analysis_AE, type = "psi3")
+pvalues_Fraser_AE_psi5 <- pVals(fds = Fraser_analysis_AE, type = "psi5")
+
+pvalues_Fraser_AE_psi3_converged <-pVals(fds = Fraser_analysis_AE, type = "psi3")[rowData(Fraser_analysis_AE)$FitDMessage_psi3 != "ERROR: ABNORMAL_TERMINATION_IN_LNSRCH",]
+pvalues_Fraser_AE_psi5_converged <- pVals(fds = Fraser_analysis_AE, type = "psi5")[rowData(Fraser_analysis_AE)$FitDMessage_psi5 != "ERROR: ABNORMAL_TERMINATION_IN_LNSRCH",]
+
+pvalues_Fraser_BB_jacard <- assays(Fraser_analysis_BB_jaccard)$pvaluesBetaBinomial_junction_jaccard
+pvalues_Fraser_AE_jacard <- assays(Fraser_analysis_AE_jaccard)$pvaluesBetaBinomial_junction_jaccard
+
+pvalues_Fraser_BB_jacard_converged <- assays(Fraser_analysis_BB_jaccard)$pvaluesBetaBinomial_junction_jaccard[rowData(Fraser_analysis_BB_jaccard)$FitDMessage_jaccard != "ERROR: ABNORMAL_TERMINATION_IN_LNSRCH",]
+pvalues_Fraser_AE_jacard_converged <- assays(Fraser_analysis_AE_jaccard)$pvaluesBetaBinomial_junction_jaccard[rowData(Fraser_analysis_AE_jaccard)$FitDMessage_jaccard != "ERROR: ABNORMAL_TERMINATION_IN_LNSRCH",]
+
+
+```
+
+
+
+```{r}
+
+query <- as.data.table(findOverlaps(rowRanges(Fraser_analysis_BB),genes(txdb)))
+
+df_Fraser_analysis_BB_psi3 <- as.data.frame(pvalues_Fraser_BB_psi3[query$queryHits,])
+df_Fraser_analysis_BB_psi3$gene <- genes(txdb)$gene_id[query$subjectHits]
+gene_pvalues_Fraser_BB_psi3 <- df_Fraser_analysis_BB_psi3 %>% group_by(gene) %>%
+                                                      summarise(across(paste0("Sample",c(1:39)),min))
+
+
+query <- as.data.table(findOverlaps(rowRanges(Fraser_analysis_BB)[rowData(Fraser_analysis_BB)$FitDMessage_psi3 != "ERROR: ABNORMAL_TERMINATION_IN_LNSRCH",],genes(txdb)))
+
+df_Fraser_analysis_BB_psi3_converged <- as.data.frame(pvalues_Fraser_BB_psi3_converged[query$queryHits,])
+df_Fraser_analysis_BB_psi3_converged$gene <- genes(txdb)$gene_id[query$subjectHits]
+gene_pvalues_Fraser_BB_psi3_converged <- df_Fraser_analysis_BB_psi3_converged %>% group_by(gene) %>%
+                                                      summarise(across(paste0("Sample",c(1:39)),min))
+
+query <- as.data.table(findOverlaps(rowRanges(Fraser_analysis_BB),genes(txdb)))
+
+df_Fraser_analysis_BB_psi5 <- as.data.frame(pvalues_Fraser_BB_psi5[query$queryHits,])
+df_Fraser_analysis_BB_psi5$gene <- genes(txdb)$gene_id[query$subjectHits]
+gene_pvalues_Fraser_BB_psi5 <- df_Fraser_analysis_BB_psi5 %>% group_by(gene) %>%
+                                                      summarise(across(paste0("Sample",c(1:39)),min))
+
+
+query <- as.data.table(findOverlaps(rowRanges(Fraser_analysis_BB)[rowData(Fraser_analysis_BB)$FitDMessage_psi5 != "ERROR: ABNORMAL_TERMINATION_IN_LNSRCH",],genes(txdb)))
+
+df_Fraser_analysis_BB_psi5_converged <- as.data.frame(pvalues_Fraser_BB_psi5_converged[query$queryHits,])
+df_Fraser_analysis_BB_psi5_converged$gene <- genes(txdb)$gene_id[query$subjectHits]
+gene_pvalues_Fraser_BB_psi5_converged <- df_Fraser_analysis_BB_psi5_converged %>% group_by(gene) %>%
+                                                      summarise(across(paste0("Sample",c(1:39)),min))
+
+query <- as.data.table(findOverlaps(rowRanges(Fraser_analysis_AE),genes(txdb)))
+
+df_Fraser_analysis_AE_psi3 <- as.data.frame(pvalues_Fraser_AE_psi3[query$queryHits,])
+df_Fraser_analysis_AE_psi3$gene <- genes(txdb)$gene_id[query$subjectHits]
+gene_pvalues_Fraser_AE_psi3 <- df_Fraser_analysis_AE_psi3 %>% group_by(gene) %>%
+                                                      summarise(across(paste0("Sample",c(1:39)),min))
+
+query <- as.data.table(findOverlaps(rowRanges(Fraser_analysis_AE)[rowData(Fraser_analysis_AE)$FitDMessage_psi3 != "ERROR: ABNORMAL_TERMINATION_IN_LNSRCH",],genes(txdb)))
+
+df_Fraser_analysis_AE_psi3_converged <- as.data.frame(pvalues_Fraser_AE_psi3_converged[query$queryHits,])
+df_Fraser_analysis_AE_psi3_converged$gene <- genes(txdb)$gene_id[query$subjectHits]
+gene_pvalues_Fraser_AE_psi3_converged <- df_Fraser_analysis_AE_psi3_converged %>% group_by(gene) %>%
+                                                      summarise(across(paste0("Sample",c(1:39)),min))
+
+
+query <- as.data.table(findOverlaps(rowRanges(Fraser_analysis_AE),genes(txdb)))
+
+df_Fraser_analysis_AE_psi5 <- as.data.frame(pvalues_Fraser_AE_psi5[query$queryHits,])
+df_Fraser_analysis_AE_psi5$gene <- genes(txdb)$gene_id[query$subjectHits]
+gene_pvalues_Fraser_AE_psi5 <- df_Fraser_analysis_AE_psi5 %>% group_by(gene) %>%
+                                                      summarise(across(paste0("Sample",c(1:39)),min))
+
+query <- as.data.table(findOverlaps(rowRanges(Fraser_analysis_AE)[rowData(Fraser_analysis_AE)$FitDMessage_psi5 != "ERROR: ABNORMAL_TERMINATION_IN_LNSRCH",],genes(txdb)))
+
+df_Fraser_analysis_AE_psi5_converged <- as.data.frame(pvalues_Fraser_AE_psi5_converged[query$queryHits,])
+df_Fraser_analysis_AE_psi5_converged$gene <- genes(txdb)$gene_id[query$subjectHits]
+gene_pvalues_Fraser_AE_psi5_converged <- df_Fraser_analysis_AE_psi5_converged %>% group_by(gene) %>%
+                                                      summarise(across(paste0("Sample",c(1:39)),min))
+
+
+query <- as.data.table(findOverlaps(rowRanges(Fraser_analysis_BB_jaccard),genes(txdb)))
+
+df_Fraser_BB_jaccard <- as.data.frame(pvalues_Fraser_BB_jacard[query$queryHits,])
+df_Fraser_BB_jaccard[is.na(df_Fraser_BB_jaccard)] <- 1
+df_Fraser_BB_jaccard$gene <- genes(txdb)$gene_id[query$subjectHits]
+gene_pvalues_Fraser_BB_jaccard <- df_Fraser_BB_jaccard %>% group_by(gene) %>%
+                                                      summarise(across(paste0("Sample",c(1:39)),min))
+
+
+query <- as.data.table(findOverlaps(rowRanges(Fraser_analysis_BB_jaccard)[rowData(Fraser_analysis_BB_jaccard)$FitDMessage_jaccard != "ERROR: ABNORMAL_TERMINATION_IN_LNSRCH",],genes(txdb)))
+
+df_Fraser_BB_jaccard_converged <- as.data.frame(pvalues_Fraser_BB_jacard_converged[query$queryHits,])
+df_Fraser_BB_jaccard_converged[is.na(df_Fraser_BB_jaccard_converged)] <- 1
+df_Fraser_BB_jaccard_converged$gene <- genes(txdb)$gene_id[query$subjectHits]
+gene_pvalues_Fraser_BB_jaccard_converged <- df_Fraser_BB_jaccard_converged %>% group_by(gene) %>%
+                                                      summarise(across(paste0("Sample",c(1:39)),min))
+
+query <- as.data.table(findOverlaps(rowRanges(Fraser_analysis_AE_jaccard),genes(txdb)))
+
+df_Fraser_AE_jaccard <- as.data.frame(pvalues_Fraser_AE_jacard[query$queryHits,])
+df_Fraser_AE_jaccard[is.na(df_Fraser_AE_jaccard)] <- 1
+df_Fraser_AE_jaccard$gene <- genes(txdb)$gene_id[query$subjectHits]
+gene_pvalues_Fraser_AE_jaccard <- df_Fraser_AE_jaccard %>% group_by(gene) %>%
+                                                      summarise(across(paste0("Sample",c(1:39)),min))
+
+query <- as.data.table(findOverlaps(rowRanges(Fraser_analysis_AE_jaccard)[rowData(Fraser_analysis_AE_jaccard)$FitDMessage_jaccard != "ERROR: ABNORMAL_TERMINATION_IN_LNSRCH",],genes(txdb)))
+
+df_Fraser_AE_jaccard_converged <- as.data.frame(pvalues_Fraser_AE_jacard_converged[query$queryHits,])
+df_Fraser_AE_jaccard_converged[is.na(df_Fraser_AE_jaccard_converged)] <- 1
+df_Fraser_AE_jaccard_converged$gene <- genes(txdb)$gene_id[query$subjectHits]
+gene_pvalues_Fraser_AE_jaccard_converged <- df_Fraser_AE_jaccard_converged %>% group_by(gene) %>%
+                                                      summarise(across(paste0("Sample",c(1:39)),min))
+
+
+
+```
+
+
+```{r}
+unique_outliers_Fraser_BB_psi3 <- unique_outliers[rownames(unique_outliers)%in%
+                                                             gene_pvalues_Fraser_BB_psi3$gene,]
+unique_outliers_Fraser_BB_psi5 <- unique_outliers[rownames(unique_outliers)%in%
+                                                             gene_pvalues_Fraser_BB_psi5$gene,]
+unique_outliers_Fraser_AE_psi3 <- unique_outliers[rownames(unique_outliers)%in%
+                                                             gene_pvalues_Fraser_AE_psi3$gene,]
+unique_outliers_Fraser_AE_psi5 <- unique_outliers[rownames(unique_outliers)%in%
+                                                             gene_pvalues_Fraser_AE_psi5$gene,]
+unique_outliers_Fraser_BB_jaccard <- unique_outliers[rownames(unique_outliers)%in%
+                                                             gene_pvalues_Fraser_BB_jaccard$gene,]
+unique_outliers_Fraser_AE_jaccard <- unique_outliers[rownames(unique_outliers)%in%
+                                                             gene_pvalues_Fraser_AE_jaccard$gene,]
+
+unique_outliers_Fraser_BB_psi3_converged <- unique_outliers[rownames(unique_outliers)%in%
+                                                             gene_pvalues_Fraser_BB_psi3_converged$gene,]
+unique_outliers_Fraser_BB_psi5_converged <- unique_outliers[rownames(unique_outliers)%in%
+                                                             gene_pvalues_Fraser_BB_psi5_converged$gene,]
+unique_outliers_Fraser_AE_psi3_converged <- unique_outliers[rownames(unique_outliers)%in%
+                                                             gene_pvalues_Fraser_AE_psi3_converged$gene,]
+unique_outliers_Fraser_AE_psi5_converged <- unique_outliers[rownames(unique_outliers)%in%
+                                                             gene_pvalues_Fraser_AE_psi5_converged$gene,]
+unique_outliers_Fraser_BB_jaccard_converged <- unique_outliers[rownames(unique_outliers)%in%
+                                                             gene_pvalues_Fraser_BB_jaccard_converged$gene,]
+unique_outliers_Fraser_AE_jaccard_converged <- unique_outliers[rownames(unique_outliers)%in%
+                                                             gene_pvalues_Fraser_AE_jaccard_converged$gene,]
+
+
+```
+
+```{r}
+order <- match(gene_pvalues_Fraser_BB_psi3$gene, rownames(unique_outliers_Fraser_BB_psi3))
+gene_pvalues_Fraser_BB_psi3 <- gene_pvalues_Fraser_BB_psi3[order, -c(1)]
+
+order <- match(gene_pvalues_Fraser_BB_psi5$gene, rownames(unique_outliers_Fraser_BB_psi5))
+gene_pvalues_Fraser_BB_psi5 <- gene_pvalues_Fraser_BB_psi5[order, -c(1)]
+
+order <- match(gene_pvalues_Fraser_AE_psi3$gene, rownames(unique_outliers_Fraser_AE_psi3))
+gene_pvalues_Fraser_AE_psi3 <- gene_pvalues_Fraser_AE_psi3[order, -c(1)]
+
+order <- match(gene_pvalues_Fraser_AE_psi5$gene, rownames(unique_outliers_Fraser_AE_psi5))
+gene_pvalues_Fraser_AE_psi5 <- gene_pvalues_Fraser_AE_psi5[order, -c(1)]
+
+order <- match(gene_pvalues_Fraser_BB_jaccard$gene, rownames(unique_outliers_Fraser_BB_jaccard))
+gene_pvalues_Fraser_BB_jaccard <- gene_pvalues_Fraser_BB_jaccard[order, -c(1)]
+
+order <- match(gene_pvalues_Fraser_AE_jaccard$gene, rownames(unique_outliers_Fraser_AE_jaccard))
+gene_pvalues_Fraser_AE_jaccard <- gene_pvalues_Fraser_AE_jaccard[order, -c(1)]
+
+
+
+order <- match(gene_pvalues_Fraser_BB_psi3_converged$gene, rownames(unique_outliers_Fraser_BB_psi3_converged))
+gene_pvalues_Fraser_BB_psi3_converged <- gene_pvalues_Fraser_BB_psi3_converged[order, -c(1)]
+
+order <- match(gene_pvalues_Fraser_BB_psi5_converged$gene, rownames(unique_outliers_Fraser_BB_psi5_converged))
+gene_pvalues_Fraser_BB_psi5_converged <- gene_pvalues_Fraser_BB_psi5_converged[order, -c(1)]
+
+order <- match(gene_pvalues_Fraser_AE_psi3_converged$gene, rownames(unique_outliers_Fraser_AE_psi3_converged))
+gene_pvalues_Fraser_AE_psi3_converged <- gene_pvalues_Fraser_AE_psi3_converged[order, -c(1)]
+
+order <- match(gene_pvalues_Fraser_AE_psi5_converged$gene, rownames(unique_outliers_Fraser_AE_psi5_converged))
+gene_pvalues_Fraser_AE_psi5_converged <- gene_pvalues_Fraser_AE_psi5_converged[order, -c(1)]
+
+order <- match(gene_pvalues_Fraser_BB_jaccard_converged$gene, rownames(unique_outliers_Fraser_BB_jaccard_converged))
+gene_pvalues_Fraser_BB_jaccard_converged <- gene_pvalues_Fraser_BB_jaccard_converged[order, -c(1)]
+
+order <- match(gene_pvalues_Fraser_AE_jaccard_converged$gene, rownames(unique_outliers_Fraser_AE_jaccard_converged))
+gene_pvalues_Fraser_AE_jaccard_converged <- gene_pvalues_Fraser_AE_jaccard_converged[order, -c(1)]
+
+
+```
+
+```{r}
+
+auc_Fraser_BB_psi3 <- matrix(NA, ncol = ncol(gene_pvalues_Fraser_BB_psi3), nrow = 1)
+    
+    for(i in c(1:ncol(gene_pvalues_Fraser_BB_psi3))){
+    scores <- -c(unlist(gene_pvalues_Fraser_BB_psi3[,i]))
+    labels <- c(unlist(abs(unique_outliers_Fraser_BB_psi3[,i])))
+    msmdat_simulation <- mmdata(c(join_scores(scores,chklen=F)),
+                                c(join_labels(labels,chklen=F)))
+    mscurves_simulation <- evalmod(msmdat_simulation)
+    auc_Fraser_BB_psi3[,i] <- subset(auc(mscurves_simulation),curvetypes == "PRC")$aucs
+      
+    }
+
+
+
+auc_Fraser_BB_psi5 <- matrix(NA, ncol = ncol(gene_pvalues_Fraser_BB_psi5), nrow = 1)
+    
+    for(i in c(1:ncol(gene_pvalues_Fraser_BB_psi5))){
+    scores <- -c(unlist(gene_pvalues_Fraser_BB_psi5[,i]))
+    labels <- c(unlist(abs(unique_outliers_Fraser_BB_psi5[,i])))
+    if(length(unique(labels)) == 1) {
+      auc_Fraser_BB_psi5[,i] <- 0
+    } else{
+    msmdat_simulation <- mmdata(c(join_scores(scores,chklen=F)),
+                                c(join_labels(labels,chklen=F)))
+    mscurves_simulation <- evalmod(msmdat_simulation)
+    auc_Fraser_BB_psi5[,i] <- subset(auc(mscurves_simulation),curvetypes == "PRC")$aucs
+      
+   }
+    }
+
+auc_Fraser_AE_psi3 <- matrix(NA, ncol = ncol(gene_pvalues_Fraser_AE_psi3), nrow = 1)
+    
+    for(i in c(1:ncol(gene_pvalues_Fraser_AE_psi3))){
+    scores <- -c(unlist(gene_pvalues_Fraser_AE_psi3[,i]))
+    labels <- c(unlist(abs(unique_outliers_Fraser_AE_psi3[,i])))
+    msmdat_simulation <- mmdata(c(join_scores(scores,chklen=F)),
+                                c(join_labels(labels,chklen=F)))
+    mscurves_simulation <- evalmod(msmdat_simulation)
+    auc_Fraser_AE_psi3[,i] <- subset(auc(mscurves_simulation),curvetypes == "PRC")$aucs
+      
+    }
+
+
+
+auc_Fraser_AE_psi5 <- matrix(NA, ncol = ncol(gene_pvalues_Fraser_AE_psi5), nrow = 1)
+    
+    for(i in c(1:ncol(gene_pvalues_Fraser_AE_psi5))){
+    scores <- -c(unlist(gene_pvalues_Fraser_AE_psi5[,i]))
+    labels <- c(unlist(abs(unique_outliers_Fraser_AE_psi5[,i])))
+    if(length(unique(labels)) == 1) {
+      auc_Fraser_AE_psi5[,i] <- 0
+    } else{
+    msmdat_simulation <- mmdata(c(join_scores(scores,chklen=F)),
+                                c(join_labels(labels,chklen=F)))
+    mscurves_simulation <- evalmod(msmdat_simulation)
+    auc_Fraser_AE_psi5[,i] <- subset(auc(mscurves_simulation),curvetypes == "PRC")$aucs
+      
+   }
+    }
+
+
+
+auc_Fraser_BB_jaccard <- matrix(NA, ncol = ncol(gene_pvalues_Fraser_BB_jaccard), nrow = 1)
+    
+    for(i in c(1:ncol(gene_pvalues_Fraser_BB_jaccard))){
+    scores <- -c(unlist(gene_pvalues_Fraser_BB_jaccard[,i]))
+    labels <- c(unlist(abs(unique_outliers_Fraser_BB_jaccard[,i])))
+    msmdat_simulation <- mmdata(c(join_scores(scores,chklen=F)),
+                                c(join_labels(labels,chklen=F)))
+    mscurves_simulation <- evalmod(msmdat_simulation)
+    auc_Fraser_BB_jaccard[,i] <- subset(auc(mscurves_simulation),curvetypes == "PRC")$aucs
+      
+    }
+
+auc_Fraser_AE_jaccard <- matrix(NA, ncol = ncol(gene_pvalues_Fraser_AE_jaccard), nrow = 1)
+    
+    for(i in c(1:ncol(gene_pvalues_Fraser_AE_jaccard))){
+    scores <- -c(unlist(gene_pvalues_Fraser_AE_jaccard[,i]))
+    labels <- c(unlist(abs(unique_outliers_Fraser_AE_jaccard[,i])))
+    msmdat_simulation <- mmdata(c(join_scores(scores,chklen=F)),
+                                c(join_labels(labels,chklen=F)))
+    mscurves_simulation <- evalmod(msmdat_simulation)
+    auc_Fraser_AE_jaccard[,i] <- subset(auc(mscurves_simulation),curvetypes == "PRC")$aucs
+      
+    }
+
+
+
+
+auc_Fraser_BB_psi3_converged <- matrix(NA, ncol = ncol(gene_pvalues_Fraser_BB_psi3_converged), nrow = 1)
+    
+    for(i in c(1:ncol(gene_pvalues_Fraser_BB_psi3_converged))){
+    scores <- -c(unlist(gene_pvalues_Fraser_BB_psi3_converged[,i]))
+    labels <- c(unlist(abs(unique_outliers_Fraser_BB_psi3_converged[,i])))
+    msmdat_simulation <- mmdata(c(join_scores(scores,chklen=F)),
+                                c(join_labels(labels,chklen=F)))
+    mscurves_simulation <- evalmod(msmdat_simulation)
+    auc_Fraser_BB_psi3_converged[,i] <- subset(auc(mscurves_simulation),curvetypes == "PRC")$aucs
+      
+    }
+
+
+
+auc_Fraser_BB_psi5_converged <- matrix(NA, ncol = ncol(gene_pvalues_Fraser_BB_psi5_converged), nrow = 1)
+    
+    for(i in c(1:ncol(gene_pvalues_Fraser_BB_psi5_converged))){
+    scores <- -c(unlist(gene_pvalues_Fraser_BB_psi5_converged[,i]))
+    labels <- c(unlist(abs(unique_outliers_Fraser_BB_psi5_converged[,i])))
+    if(length(unique(labels)) == 1) {
+      auc_Fraser_BB_psi5_converged[,i] <- 0
+    } else{
+    msmdat_simulation <- mmdata(c(join_scores(scores,chklen=F)),
+                                c(join_labels(labels,chklen=F)))
+    mscurves_simulation <- evalmod(msmdat_simulation)
+    auc_Fraser_BB_psi5_converged[,i] <- subset(auc(mscurves_simulation),curvetypes == "PRC")$aucs
+      
+   }
+    }
+
+auc_Fraser_AE_psi3_converged <- matrix(NA, ncol = ncol(gene_pvalues_Fraser_AE_psi3_converged), nrow = 1)
+    
+    for(i in c(1:ncol(gene_pvalues_Fraser_AE_psi3_converged))){
+    scores <- -c(unlist(gene_pvalues_Fraser_AE_psi3_converged[,i]))
+    labels <- c(unlist(abs(unique_outliers_Fraser_AE_psi3_converged[,i])))
+    msmdat_simulation <- mmdata(c(join_scores(scores,chklen=F)),
+                                c(join_labels(labels,chklen=F)))
+    mscurves_simulation <- evalmod(msmdat_simulation)
+    auc_Fraser_AE_psi3_converged[,i] <- subset(auc(mscurves_simulation),curvetypes == "PRC")$aucs
+      
+    }
+
+
+
+auc_Fraser_AE_psi5_converged <- matrix(NA, ncol = ncol(gene_pvalues_Fraser_AE_psi5_converged), nrow = 1)
+    
+    for(i in c(1:ncol(gene_pvalues_Fraser_AE_psi5_converged))){
+    scores <- -c(unlist(gene_pvalues_Fraser_AE_psi5_converged[,i]))
+    labels <- c(unlist(abs(unique_outliers_Fraser_AE_psi5_converged[,i])))
+    if(length(unique(labels)) == 1) {
+      auc_Fraser_AE_psi5_converged[,i] <- 0
+    } else{
+    msmdat_simulation <- mmdata(c(join_scores(scores,chklen=F)),
+                                c(join_labels(labels,chklen=F)))
+    mscurves_simulation <- evalmod(msmdat_simulation)
+    auc_Fraser_AE_psi5_converged[,i] <- subset(auc(mscurves_simulation),curvetypes == "PRC")$aucs
+      
+   }
+    }
+
+
+
+auc_Fraser_BB_jaccard_converged <- matrix(NA, ncol = ncol(gene_pvalues_Fraser_BB_jaccard_converged), nrow = 1)
+    
+    for(i in c(1:ncol(gene_pvalues_Fraser_BB_jaccard_converged))){
+    scores <- -c(unlist(gene_pvalues_Fraser_BB_jaccard_converged[,i]))
+    labels <- c(unlist(abs(unique_outliers_Fraser_BB_jaccard_converged[,i])))
+    msmdat_simulation <- mmdata(c(join_scores(scores,chklen=F)),
+                                c(join_labels(labels,chklen=F)))
+    mscurves_simulation <- evalmod(msmdat_simulation)
+    auc_Fraser_BB_jaccard_converged[,i] <- subset(auc(mscurves_simulation),curvetypes == "PRC")$aucs
+      
+    }
+
+auc_Fraser_AE_jaccard_converged <- matrix(NA, ncol = ncol(gene_pvalues_Fraser_AE_jaccard_converged), nrow = 1)
+    
+    for(i in c(1:ncol(gene_pvalues_Fraser_AE_jaccard_converged))){
+    scores <- -c(unlist(gene_pvalues_Fraser_AE_jaccard_converged[,i]))
+    labels <- c(unlist(abs(unique_outliers_Fraser_AE_jaccard_converged[,i])))
+    msmdat_simulation <- mmdata(c(join_scores(scores,chklen=F)),
+                                c(join_labels(labels,chklen=F)))
+    mscurves_simulation <- evalmod(msmdat_simulation)
+    auc_Fraser_AE_jaccard_converged[,i] <- subset(auc(mscurves_simulation),curvetypes == "PRC")$aucs
+      
+    }
+
+
+
+
+```
+
+
+```{r}
+df_results <- data.frame("auc" = c(
+                                   auc_Fraser_BB_psi3,
+                                   auc_Fraser_BB_psi5,
+                                   auc_Fraser_AE_psi3,
+                                   auc_Fraser_AE_psi5,
+                                   auc_Fraser_BB_jaccard,
+                                   auc_Fraser_AE_jaccard,
+                                   auc_Fraser_BB_psi3_converged,
+                                   auc_Fraser_BB_psi5_converged,
+                                   auc_Fraser_AE_psi3_converged,
+                                   auc_Fraser_AE_psi5_converged,
+                                   auc_Fraser_BB_jaccard_converged,
+                                   auc_Fraser_AE_jaccard_converged),
+                         "method" = c(rep(c(
+                                      "FRASER-BB-Decoder psi3",
+                                      "FRASER-BB-Decoder psi5",
+                                      "FRASER-Autoencoder psi3",
+                                      "FRASER-Autoencoder psi5",
+                                      "FRASER-BB-Decoder jaccard",
+                                      "FRASER-Autoencoder jaccard",
+                                      "FRASER-BB-Decoder psi3 converged",
+                                      "FRASER-BB-Decoder psi5 converged",
+                                      "FRASER-Autoencoder psi3 converged",
+                                      "FRASER-Autoencoder psi5 converged",
+                                      "FRASER-BB-Decoder jaccard converged",
+                                      "FRASER-Autoencoder jaccard converged"),each = 39)),
+                         "converged" = c(rep(c("All results","Converged only"),each = 39*6)),
+                         "Frasermethod" = c(rep(c("BB-Decoder","Autoencoder"), each = 39*2),
+                                             rep(c("BB-Decoder","Autoencoder"), each = 39),
+                                             rep(c("BB-Decoder","Autoencoder"), each = 39*2),
+                                             rep(c("BB-Decoder","Autoencoder"), each = 39)),
+                         "Frasermetric" = c(rep(c("psi[3]","psi[5]"), each = 39),
+                                             rep(c("psi[3]","psi[5]"), each = 39),
+                                             rep(c("jaccard"), each = 39*2),
+                                             rep(c("psi[3]","psi[5]"), each = 39),
+                                             rep(c("psi[3]","psi[5]"), each = 39),
+                                             rep(c("jaccard"), each = 39*2)))
+
+```
+
+```{r}
+
+plot <- ggplot(data = df_results, aes(x = converged, y = auc, col = converged)) + geom_boxplot(outlier.shape = NA) + geom_jitter() + theme(axis.text=element_text(size=12),
+        axis.title=element_text(size=14,face="bold")) + theme_bw() + facet_wrap(~Frasermetric*Frasermethod, labeller = label_parsed) + ylab("Area under the curve per sample") + theme_bw() + ylim(c(0,0.6)) + theme(legend.position = "right", legend.title = element_blank())+
+  theme(axis.text=element_text(size=10), axis.title=element_text(size=12)) + 
+  theme(axis.title.x = element_blank(), axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+
+print(plot)
+
+
+```
+```{r}
+ggsave(paste0(output_directory,"/Supplementary-Figure-7.png"), plot, 
+       device = "png", width = 9, height = 4.5, dpi = 300)
+ggsave(paste0(output_directory,"/Supplementary-Figure-7.eps"), plot, 
+       device = cairo_ps, width = 9, height = 4.5, dpi = 300)
+ggsave(paste0(output_directory,"/Supplementary-Figure-7.pdf"), plot, 
+       device = "pdf", width = 9, height = 4.5, dpi = 300)
+
+```
+

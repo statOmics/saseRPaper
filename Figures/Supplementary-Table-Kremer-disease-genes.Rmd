@@ -1,0 +1,459 @@
+---
+title: "Untitled"
+author: "Alex"
+date: "4/6/2023"
+output: html_document
+---
+
+```{r}
+library(FRASER)
+library(TxDb.Hsapiens.UCSC.hg19.knownGene)
+library(org.Hs.eg.db)
+library(dplyr)
+```
+
+```{r, import arguments}
+args <- (commandArgs(trailingOnly = TRUE))
+for (i in 1:length(args)) {
+  eval(parse(text = args[[i]]))
+}
+
+```
+
+```{r}
+print(data_directory_1)
+print(data_directory_2)
+
+```
+
+
+# Aberrant expression
+
+
+```{r}
+fRUV_expression <- readRDS(file = paste0(data_directory_1, "/RUV_Analysis_Case_study.RDS"))
+Outsingle <- read.delim(file = paste0(data_directory_1, "/Kremer_counts_pandasdf-fzse-zs-svd-optht-zs.csv"))
+Outrider_PCA <- readRDS(file = paste0(data_directory_1, "/Outrider_PCA_Analysis_Case_study.RDS"))
+Outrider_Autoencoder <- readRDS(file = paste0(data_directory_1, "/Outrider_autoencoder_Analysis_Case_study.RDS"))
+
+```
+
+```{r}
+samples_of_interest <- data.frame("Sample" = c("MUC1396",'MUC1344', 'MUC1365','MUC1350','MUC1398', 'MUC1436',
+               'MUC1410','X76624','MUC1395','MUC1393','MUC1404','MUC1361'),
+           "Gene" = c('MGST1',"TIMMDC1",'TIMMDC1-2','CLPP', 'TAFAZZIN', 'TANGO2',
+                      'TALDO1','SFXN4','COASY','PANK2','ALDH18A1','MCOLN1'),
+           "Ensembl_name" = c("ENSG00000008394.13_8","ENSG00000113845.10_4","ENSG00000113845.10_4",
+                              "ENSG00000125656.11_8","ENSG00000102125.16_8","ENSG00000183597.16_4",
+                              "ENSG00000177156.11_4","ENSG00000183605.17_6","ENSG00000068120.15_8",
+                              "ENSG00000125779.22_4","ENSG00000059573.9_5","ENSG00000090674.16_5"))
+
+
+```
+
+
+```{r}
+gene_ranks_fRUV_junctions_gene <- matrix(data = NA, nrow = dim(samples_of_interest)[1], ncol = 1)
+rownames(gene_ranks_fRUV_junctions_gene) <- samples_of_interest$Gene
+colnames(gene_ranks_fRUV_junctions_gene) <- c("saseR aberrant expression")
+columns_fRUV_junctions_gene <- rep(NA, dim(samples_of_interest)[1])
+pvals_fRUV_junctions_gene <- matrix(data = NA, nrow = dim(samples_of_interest)[1], ncol = 1)
+rownames(pvals_fRUV_junctions_gene) <- samples_of_interest$Gene
+colnames(pvals_fRUV_junctions_gene) <- c("saseR aberrant expression")
+
+
+```
+
+
+```{r}
+gene_ranks <- matrix(data = NA, nrow = 12, ncol = 4)
+rownames(gene_ranks) <- samples_of_interest$Gene
+colnames(gene_ranks) <- c("saseR","Outsingle", "Outrider-Autoencoder","Outrider-PCA")
+
+
+
+for(i in c(1:dim(samples_of_interest)[1])){
+    
+  rank <- (rank(assays(fRUV_expression)$pValue[,samples_of_interest$Sample[i]])[samples_of_interest$Ensembl_name[i]])
+  gene_ranks[samples_of_interest$Gene[i],1] <- rank
+  
+}
+
+for(i in c(1:dim(samples_of_interest)[1])){
+    
+  rank <- (rank(-abs(Outsingle)[,samples_of_interest$Sample[i]])[rownames(Outsingle)
+                                                                 ==samples_of_interest$Ensembl_name[i]])
+  gene_ranks[samples_of_interest$Gene[i],2] <- rank
+  
+}
+
+for(i in c(1:dim(samples_of_interest)[1])){
+    
+  rank <- (rank(assays(Outrider_Autoencoder)$pValue[,samples_of_interest$Sample[i]])[samples_of_interest$Ensembl_name[i]])
+  gene_ranks[samples_of_interest$Gene[i],3] <- rank
+  
+}
+
+for(i in c(1:dim(samples_of_interest)[1])){
+    
+  rank <- (rank(assays(Outrider_PCA)$pValue[,samples_of_interest$Sample[i]])[samples_of_interest$Ensembl_name[i]])
+  gene_ranks[samples_of_interest$Gene[i],4] <- rank
+  
+}
+
+
+gene_ranks
+
+```
+
+# Aberrant splicing
+
+
+```{r}
+
+fRUV_junctions_gene <- readRDS(file = paste0(data_directory_2, "/seFit_bins_Kremer_disease_outliers.RDS"))
+fRUV_jaccard <- readRDS(file = paste0(data_directory_2, "/seFit_fRUV_jaccard_Kremer_disease.RDS"))
+
+
+Fraser_PCA <- loadFraserDataSet(
+  dir = paste0(data_directory_2, "/Fraser"), 
+               name = "PCA_results_Kremer_disease")
+
+Fraser_AE <- loadFraserDataSet(
+  dir = paste0(data_directory_2, "/Fraser"),
+               name = "PCA_AE_weighted_results_Kremer_disease")
+  
+Fraser_PCA_jaccard <- loadFraserDataSet(
+  dir = paste0(data_directory_2, "/Fraser"), 
+               name = "PCA_jaccard_results_Kremer_disease")
+
+Fraser_AE_jaccard <- loadFraserDataSet(
+  dir = paste0(data_directory_2, "/Fraser"), 
+               name = "PCA_AE_jaccard_results_Kremer_disease")
+  
+
+
+
+org_hs <- org.Hs.eg.db
+
+
+
+Fraser_PCA <- annotateRangesWithTxDb(Fraser_PCA, txdb = TxDb.Hsapiens.UCSC.hg19.knownGene)
+Fraser_AE <- annotateRangesWithTxDb(Fraser_AE, txdb = TxDb.Hsapiens.UCSC.hg19.knownGene)
+Fraser_PCA_jaccard <- annotateRangesWithTxDb(Fraser_PCA_jaccard, txdb = TxDb.Hsapiens.UCSC.hg19.knownGene)
+Fraser_AE_jaccard <- annotateRangesWithTxDb(Fraser_AE_jaccard, txdb = TxDb.Hsapiens.UCSC.hg19.knownGene)
+
+```
+
+
+```{r}
+pvals_fRUV_junctions_gene <- as.data.frame(assays(fRUV_junctions_gene)$pValue)
+pvals_fRUV_junctions_gene$gene <- rowData(fRUV_junctions_gene)$locus
+gene_pvalues_fRUV_junctions_gene <- as.data.frame(pvals_fRUV_junctions_gene %>% group_by(gene) %>%
+                                                      summarise(across(colnames(pvals_fRUV_junctions_gene)[1:119],min)))
+
+
+
+pvals_fRUV_jaccard  <- assays(fRUV_jaccard)$pValue
+pvals_fRUV_jaccard <- as.data.frame(pvals_fRUV_jaccard)
+pvals_fRUV_jaccard$gene <- rowData(fRUV_jaccard)$locus
+
+gene_pvalues_fRUV_jaccard <- as.data.frame(pvals_fRUV_jaccard %>% group_by(gene) %>%
+                                                      summarise(across(colnames(pvals_fRUV_jaccard)[1:119],min)))
+
+
+
+```
+
+
+```{r}
+pvals_PCA_psi3 <- as.data.frame(assays(Fraser_PCA)$pvaluesBetaBinomial_junction_psi3)
+pvals_PCA_psi3$gene <- rowRanges(Fraser_PCA)$hgnc_symbol
+
+gene_pvalues_Fraser_PCA_psi3 <- as.data.frame(pvals_PCA_psi3 %>% group_by(gene) %>%
+                                                      summarise(across(colnames(pvals_PCA_psi3)[1:119],min)))
+
+
+pvals_PCA_psi5 <- as.data.frame(assays(Fraser_PCA)$pvaluesBetaBinomial_junction_psi5)
+pvals_PCA_psi5$gene <- rowRanges(Fraser_PCA)$hgnc_symbol
+
+gene_pvalues_Fraser_PCA_psi5 <- as.data.frame(pvals_PCA_psi5 %>% group_by(gene) %>%
+                                                      summarise(across(colnames(pvals_PCA_psi5)[1:119],min)))
+
+
+pvals_AE_psi3 <- as.data.frame(assays(Fraser_AE)$pvaluesBetaBinomial_junction_psi3)
+pvals_AE_psi3$gene <- rowRanges(Fraser_AE)$hgnc_symbol
+
+gene_pvalues_Fraser_AE_psi3 <- as.data.frame(pvals_AE_psi3 %>% group_by(gene) %>%
+                                                      summarise(across(colnames(pvals_AE_psi3)[1:119],min)))
+
+
+pvals_AE_psi5 <- as.data.frame(assays(Fraser_AE)$pvaluesBetaBinomial_junction_psi5)
+pvals_AE_psi5$gene <- rowRanges(Fraser_AE)$hgnc_symbol
+
+gene_pvalues_Fraser_AE_psi5 <- as.data.frame(pvals_AE_psi5 %>% group_by(gene) %>%
+                                                      summarise(across(colnames(pvals_AE_psi5)[1:119],min)))
+
+
+
+
+pvals_PCA_jaccard <- as.data.frame(assays(Fraser_PCA_jaccard)$pvaluesBetaBinomial_junction_jaccard)
+pvals_PCA_jaccard$gene <- rowRanges(Fraser_PCA_jaccard)$hgnc_symbol
+
+gene_pvalues_Fraser_PCA_jaccard <- as.data.frame(pvals_PCA_jaccard %>% group_by(gene) %>%
+                                                      summarise(across(colnames(pvals_PCA_jaccard)[1:119],min)))
+
+pvals_AE_jaccard <- as.data.frame(assays(Fraser_AE_jaccard)$pvaluesBetaBinomial_junction_jaccard)
+pvals_AE_jaccard$gene <- rowRanges(Fraser_AE_jaccard)$hgnc_symbol
+pvals_AE_jaccard[is.na(pvals_AE_jaccard)] <- 1
+gene_pvalues_Fraser_AE_jaccard <- as.data.frame(pvals_AE_jaccard %>% group_by(gene) %>%
+                                                      summarise(across(colnames(pvals_AE_jaccard)[1:119],min)))
+
+
+```
+
+```{r}
+
+
+samples_of_interest <- data.frame(
+  "Sample" = c("MUC1396",'MUC1344', 'MUC1365','MUC1350','MUC1398', 'MUC1436',
+               'MUC1410','X76624','MUC1395','MUC1393','MUC1404','MUC1361'),
+           "Gene" = c("MGST1","TIMMDC1",'TIMMDC1','CLPP','TAFAZZIN', 'TANGO2',
+                      'TALDO1','SFXN4','COASY','PANK2','ALDH18A1','MCOLN1'))
+
+
+```
+
+
+
+
+```{r}
+
+
+gene_ranks_fRUV_junctions_gene <- matrix(data = NA, nrow = dim(samples_of_interest)[1], ncol = 1)
+rownames(gene_ranks_fRUV_junctions_gene) <- samples_of_interest$Gene
+colnames(gene_ranks_fRUV_junctions_gene) <- c("saseR junctions")
+columns_fRUV_junctions_gene <- rep(NA, dim(samples_of_interest)[1])
+pvals_fRUV_junctions_gene <- matrix(data = NA, nrow = dim(samples_of_interest)[1], ncol = 1)
+rownames(pvals_fRUV_junctions_gene) <- samples_of_interest$Gene
+colnames(pvals_fRUV_junctions_gene) <- c("saseR junctions")
+
+
+for(i in c(1:dim(samples_of_interest)[1])){
+    rows <- which(gene_pvalues_fRUV_junctions_gene$gene == samples_of_interest$Gene[i])
+    if (length(rows) == 0){
+      gene_ranks_fRUV_junctions_gene[i,] <- Inf
+    } else{
+    column <- which(colnames(gene_pvalues_fRUV_junctions_gene) == samples_of_interest$Sample[i])
+    columns_fRUV_junctions_gene[i] <- column
+    rank <- rank(gene_pvalues_fRUV_junctions_gene[, column])[rows]
+    pvals_fRUV_junctions_gene[i,] <- unlist(gene_pvalues_fRUV_junctions_gene[rows, column])
+    gene_ranks_fRUV_junctions_gene[i,] <- rank}
+
+  
+}
+
+
+
+gene_ranks_fRUV_jaccard <- matrix(data = NA, nrow = dim(samples_of_interest)[1], ncol = 1)
+rownames(gene_ranks_fRUV_jaccard) <- samples_of_interest$Gene
+colnames(gene_ranks_fRUV_jaccard) <- c("saseR jaccard")
+columns_fRUV_jaccard<- rep(NA, dim(samples_of_interest)[1])
+pvals_fRUV_jaccard <- matrix(data = NA, nrow = dim(samples_of_interest)[1], ncol = 1)
+rownames(pvals_fRUV_jaccard) <- samples_of_interest$Gene
+colnames(pvals_fRUV_jaccard) <- c("saseR jaccard")
+
+
+for(i in c(1:dim(samples_of_interest)[1])){
+    rows <- which(gene_pvalues_fRUV_jaccard$gene == samples_of_interest$Gene[i])
+    if (length(rows) == 0){
+      gene_ranks_fRUV_jaccard[i,] <- Inf
+    } else{
+    column <- which(colnames(gene_pvalues_fRUV_jaccard) == samples_of_interest$Sample[i])
+    columns_fRUV_jaccard[i] <- column
+    rank <- rank(gene_pvalues_fRUV_jaccard[, column])[rows]
+    pvals_fRUV_jaccard[i,] <- unlist(gene_pvalues_fRUV_jaccard[rows, column])
+    gene_ranks_fRUV_jaccard[i,] <- rank}
+
+  
+}
+
+
+gene_ranks_pca_psi3 <- matrix(data = NA, nrow = dim(samples_of_interest)[1], ncol = 1)
+rownames(gene_ranks_pca_psi3) <- samples_of_interest$Gene
+colnames(gene_ranks_pca_psi3) <- c("FRASER-PCA psi")
+
+columns_pca_psi3 <- rep(NA, dim(samples_of_interest)[1])
+pvals_pca_psi3 <- matrix(data = NA, nrow = dim(samples_of_interest)[1], ncol = 1)
+rownames(pvals_pca_psi3) <- samples_of_interest$Gene
+colnames(pvals_pca_psi3) <- c("FRASER-PCA psi")
+
+
+
+  for(i in c(1:dim(samples_of_interest)[1])){
+    rows <- which((gene_pvalues_Fraser_PCA_psi3$gene) == samples_of_interest$Gene[i])
+    if (length(rows) == 0){
+      gene_ranks_pca_psi3[i,] <- Inf
+    } else{
+   column <- which(colnames(gene_pvalues_Fraser_PCA_psi3) == samples_of_interest$Sample[i])
+   columns_pca_psi3[i] <- column
+    rank <- rank(gene_pvalues_Fraser_PCA_psi3[, column])[rows]
+    pvals_pca_psi3[i,] <- gene_pvalues_Fraser_PCA_psi3[rows, column]
+
+    gene_ranks_pca_psi3[i,] <- rank}
+
+  
+  }
+
+
+gene_ranks_pca_psi5 <- matrix(data = NA, nrow = dim(samples_of_interest)[1], ncol = 1)
+rownames(gene_ranks_pca_psi5) <- samples_of_interest$Gene
+colnames(gene_ranks_pca_psi5) <- c("FRASER-PCA psi")
+
+columns_pca_psi5 <- rep(NA, dim(samples_of_interest)[1])
+pvals_pca_psi5 <- matrix(data = NA, nrow = dim(samples_of_interest)[1], ncol = 1)
+rownames(pvals_pca_psi5) <- samples_of_interest$Gene
+colnames(pvals_pca_psi5) <- c("FRASER-PCA psi")
+
+
+  for(i in c(1:dim(samples_of_interest)[1])){
+    rows <- which((gene_pvalues_Fraser_PCA_psi5$gene) == samples_of_interest$Gene[i])
+    if (length(rows) == 0){
+      gene_ranks_pca_psi5[i,] <- Inf
+    } else{
+   column <- which(colnames(gene_pvalues_Fraser_PCA_psi5) == samples_of_interest$Sample[i])
+   columns_pca_psi5[i] <- column
+    rank <- rank(gene_pvalues_Fraser_PCA_psi5[, column])[rows]
+    pvals_pca_psi5[i,] <- gene_pvalues_Fraser_PCA_psi5[rows, column]
+
+    gene_ranks_pca_psi5[i,] <- rank}
+
+  
+  }
+
+
+
+
+
+gene_ranks_ae_psi3 <- matrix(data = NA, nrow = dim(samples_of_interest)[1], ncol = 1)
+rownames(gene_ranks_ae_psi3) <- samples_of_interest$Gene
+colnames(gene_ranks_ae_psi3) <- c("FRASER-AE psi")
+
+columns_ae_psi3 <- rep(NA, dim(samples_of_interest)[1])
+pvals_ae_psi3 <- matrix(data = NA, nrow = dim(samples_of_interest)[1], ncol = 1)
+rownames(pvals_ae_psi3) <- samples_of_interest$Gene
+colnames(pvals_ae_psi3) <- c("FRASER-AE psi")
+
+
+
+
+  for(i in c(1:dim(samples_of_interest)[1])){
+    rows <- which((gene_pvalues_Fraser_AE_psi3$gene) == samples_of_interest$Gene[i])
+    if (length(rows) == 0){
+      gene_ranks_ae[i,] <- Inf
+    } else{
+   column <- which(colnames(gene_pvalues_Fraser_AE_psi3) == samples_of_interest$Sample[i])
+   columns_ae_psi3[i] <- column
+    rank <- rank(gene_pvalues_Fraser_AE_psi3[, column])[rows]
+    pvals_ae_psi3[i,] <- gene_pvalues_Fraser_AE_psi3[rows, column]
+
+    gene_ranks_ae_psi3[i,] <- rank}
+
+
+  }
+
+
+gene_ranks_ae_psi5 <- matrix(data = NA, nrow = dim(samples_of_interest)[1], ncol = 1)
+rownames(gene_ranks_ae_psi5) <- samples_of_interest$Gene
+colnames(gene_ranks_ae_psi5) <- c("FRASER-AE psi")
+
+columns_ae_psi5 <- rep(NA, dim(samples_of_interest)[1])
+pvals_ae_psi5 <- matrix(data = NA, nrow = dim(samples_of_interest)[1], ncol = 1)
+rownames(pvals_ae_psi5) <- samples_of_interest$Gene
+colnames(pvals_ae_psi5) <- c("FRASER-AE psi")
+
+
+
+  for(i in c(1:dim(samples_of_interest)[1])){
+    rows <- which((gene_pvalues_Fraser_AE_psi5)$gene == samples_of_interest$Gene[i])
+    if (length(rows) == 0){
+      gene_ranks_ae_psi5[i,] <- Inf
+    } else{
+   column <- which(colnames(gene_pvalues_Fraser_AE_psi5) == samples_of_interest$Sample[i])
+   columns_ae_psi5[i] <- column
+    rank <- rank(gene_pvalues_Fraser_AE_psi5[, column])[rows]
+    pvals_ae_psi5[i,] <- gene_pvalues_Fraser_AE_psi5[rows, column]
+
+    gene_ranks_ae_psi5[i,] <- rank}
+
+
+  }
+
+
+gene_ranks_pca_jaccard <- matrix(data = NA, nrow = dim(samples_of_interest)[1], ncol = 1)
+rownames(gene_ranks_pca_jaccard) <- samples_of_interest$Gene
+colnames(gene_ranks_pca_jaccard) <- c("FRASER-PCA jaccard")
+
+columns_pca_jaccard <- rep(NA, dim(samples_of_interest)[1])
+pvals_pca_jaccard <- matrix(data = NA, nrow = dim(samples_of_interest)[1], ncol = 1)
+rownames(pvals_pca_jaccard) <- samples_of_interest$Gene
+colnames(pvals_pca_jaccard) <- c("FRASER-PCA jaccard")
+
+
+  for(i in c(1:dim(samples_of_interest)[1])){
+    rows <- which((gene_pvalues_Fraser_PCA_jaccard$gene) == samples_of_interest$Gene[i])
+    if (length(rows) == 0){
+      gene_ranks_pca_jaccard[i,] <- Inf
+    } else{
+   column <- which(colnames(gene_pvalues_Fraser_PCA_jaccard) == samples_of_interest$Sample[i])
+   columns_pca_jaccard[i] <- column
+    rank <- rank(gene_pvalues_Fraser_PCA_jaccard[, column])[rows]
+    pvals_pca_jaccard[i,] <- gene_pvalues_Fraser_PCA_jaccard[rows, column]
+
+    gene_ranks_pca_jaccard[i,] <- rank}
+
+  
+  }
+
+
+gene_ranks_AE_jaccard <- matrix(data = NA, nrow = dim(samples_of_interest)[1], ncol = 1)
+rownames(gene_ranks_AE_jaccard) <- samples_of_interest$Gene
+colnames(gene_ranks_AE_jaccard) <- c("FRASER-AE jaccard")
+
+columns_AE_jaccard <- rep(NA, dim(samples_of_interest)[1])
+pvals_AE_jaccard <- matrix(data = NA, nrow = dim(samples_of_interest)[1], ncol = 1)
+rownames(pvals_AE_jaccard) <- samples_of_interest$Gene
+colnames(pvals_AE_jaccard) <- c("FRASER-AE jaccard")
+
+
+  for(i in c(1:dim(samples_of_interest)[1])){
+    rows <- which((gene_pvalues_Fraser_AE_jaccard$gene) == samples_of_interest$Gene[i])
+    if (length(rows) == 0){
+      gene_ranks_AE_jaccard[i,] <- Inf
+    } else{
+   column <- which(colnames(gene_pvalues_Fraser_AE_jaccard) == samples_of_interest$Sample[i])
+   columns_AE_jaccard[i] <- column
+    rank <- rank(gene_pvalues_Fraser_AE_jaccard[, column])[rows]
+    pvals_AE_jaccard[i,] <- gene_pvalues_Fraser_AE_jaccard[rows, column]
+
+    gene_ranks_AE_jaccard[i,] <- rank}
+
+  
+  }
+```
+
+```{r}
+cbind(gene_ranks_fRUV_junctions_gene, gene_ranks_fRUV_jaccard,
+      pmin(gene_ranks_pca_psi3,gene_ranks_pca_psi5),
+      pmin(gene_ranks_ae_psi3,gene_ranks_ae_psi5),
+      gene_ranks_pca_jaccard,gene_ranks_AE_jaccard)
+
+
+```
+
+
+
+
+
+
+

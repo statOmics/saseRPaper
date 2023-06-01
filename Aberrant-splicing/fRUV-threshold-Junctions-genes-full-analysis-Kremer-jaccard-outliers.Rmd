@@ -1,0 +1,110 @@
+---
+title: "Untitled"
+author: "Alex"
+date: "2/22/2023"
+output: html_document
+---
+
+```{r}
+library(ASpli)
+library(GenomicFeatures)
+library(lubridate)
+library(BiocParallel)
+library(SummarizedExperiment)
+library(dplyr)
+library(pracma)
+library(PRROC)
+library(FRASER)
+library(data.table)
+library(TxDb.Hsapiens.UCSC.hg19.knownGene)
+library(havok)
+set.seed(100)
+```
+
+```{r, import arguments}
+args <- (commandArgs(trailingOnly = TRUE))
+for (i in 1:length(args)) {
+  eval(parse(text = args[[i]]))
+}
+
+```
+
+```{r, show arguments}
+print(output_directory)
+print(data_directory)
+print(function_directory)
+
+
+```
+
+
+```{r}
+source(paste0(function_directory,
+              "/fitRUVMD-aberrant-splicing-optimalhardthreshold.R"))
+source(paste0(function_directory, 
+              "/Accessors.R"))
+
+```
+
+
+```{r}
+fds <- loadFraserDataSet(
+                  dir = paste0(data_directory,"/Kremer/Fraser"),
+                         name = "Outliers_injection_jaccard")
+
+```
+
+
+
+
+```{r}
+jcounts <- as.data.frame(counts(fds))
+sample_names <- colnames(jcounts)
+jcounts$locus <- rowRanges(fds)$hgnc_symbol
+
+data <- SummarizedExperiment(metadata = list("binCounts" = jcounts),
+                             colData = list("Names" = sample_names))
+
+```
+
+
+```{r}
+
+filtered_junctioncounts <- FilterBinCounts(data)
+seJunctionCounts <- getCountsSplicing(filtered_junctioncounts, type = "bin")
+seJunctionCounts <- seJunctionCounts[!(is.na(rowData(seJunctionCounts)$locus)),]
+seJunctionCounts <- OffsetSplicing(seJunctionCounts)
+
+filter <- filterByExpr(seJunctionCounts,
+                            min.count = 10,
+                            min.total.count = 15,
+                            large.n = 10,
+                            min.prop = 0.7)
+
+seJunctionCounts <- seJunctionCounts[filter, ]
+metadata(seJunctionCounts)$design <- ~1
+
+
+
+```
+
+
+
+
+
+```{r}
+
+seFit <- fitRUVMD(se = seJunctionCounts)
+
+
+saveRDS(object = seFit, 
+        file = paste0(output_directory,"/seFit_threshold_bins_Kremer_jaccard_outliers.RDS"))
+```
+
+
+
+
+
+
+
+

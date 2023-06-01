@@ -1,0 +1,172 @@
+---
+title: "GTEx data filtering"
+author: "Alexandre Segers"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, import arguments}
+args <- (commandArgs(trailingOnly = TRUE))
+for (i in 1:length(args)) {
+  eval(parse(text = args[[i]]))
+}
+
+```
+
+```{r}
+print(data_directory)
+print(function_directory)
+```
+
+```{r, libraries}
+library(readxl)
+library(OUTRIDER)
+library(DESeq2)
+library(MASS)
+source(paste0(function_directory,"/InjectOutliers.R"))
+source(paste0(function_directory,"/Accessors.R"))
+source(paste0(function_directory,"/fitRUVMD.R"))
+```
+
+```{r, importing data}
+GTEx <- read.delim(file = paste0(data_directory,
+                        "/GTEx/GTEx_Analysis_v6p_RNA-seq_RNA-SeQCv1.1.8_gene_reads.gct"),
+                        skip = 2)
+rownames(GTEx) <- GTEx$Name
+
+Metadata_GTEx <- read.delim(file =
+                paste0(data_directory,"/GTEx/GTEx_Data_V6_Annotations_SampleAttributesDS.txt"),
+                skip = 2,header = F)
+
+colnames_meta_GTEx <- read_excel(path = paste0(data_directory,
+                                  "/GTEx/GTEx_Data_V6_Annotations_SampleAttributesDD.xlsx"))
+
+colnames(Metadata_GTEx) <- colnames_meta_GTEx$VARNAME
+
+Metadata_samples <- read.delim(paste0(data_directory,
+                          "/GTEx/GTEx_Data_V6_Annotations_SubjectPhenotypesDS.txt"),
+                          skip=2,
+                          header=F)
+
+colnames(Metadata_samples) <- c("SUBJID","SEX","AGE","DEATH")
+
+Metadata_GTEx$SUBJID <- substr(Metadata_GTEx$SAMPID,start = 1,stop=10)
+Metadata_GTEx$SAMPIDCOR <- gsub("-",".",Metadata_GTEx$SAMPID)
+Metadata <- merge(Metadata_GTEx,Metadata_samples,by="SUBJID", all = T)
+
+```
+
+
+```{r, filtering samples and genes}
+filter <- subset(Metadata,
+                 SMGEBTCHD == "Skin - Not Sun Exposed (Suprapubic)" & SMNABTCHD >= 5.7)
+GTEx_skin <- GTEx[,filter$SAMPIDCOR[filter$SAMPIDCOR %in% colnames(GTEx)]]
+
+filter_genes_ods <- OutriderDataSet(countData = GTEx_skin)
+filter_genes_ods <- computeGeneLength(filter_genes_ods, gtfFile = paste0(data_directory,
+                                     "/GTEx/gencode.v19.genes.v6p_model.patched_contigs.gtf"))
+filter_genes <- filterExpression(filter_genes_ods)
+GTEx_counts <- GTEx_skin[rownames(filter_genes),]
+GTEx_counts <- GTEx_counts[rowSums(GTEx_counts==0)/249<0.75,]
+
+
+
+
+rownames(Metadata_samples) <- Metadata_samples$SUBJID
+Metadata_samples <- Metadata_samples[,-1]
+filter_metadata <- gsub("\\.","",
+                        gsub("GTEX\\.","GTEX-",substr(colnames(GTEx_counts),start = 1,stop=10)))
+
+Metadata_samples <- Metadata_samples[filter_metadata,]
+Metadata_samples <- data.frame(lapply(Metadata_samples, as.factor))
+
+se <- SummarizedExperiment(assays = SimpleList("counts" = as.matrix(GTEx_counts)), 
+                           colData = Metadata_samples)
+
+
+```
+
+```{r,saving counts and metadata}
+saveRDS(object = se, file = paste0(data_directory,"/GTEx/GTEx_counts.RDS"))
+saveRDS(object = Metadata_samples,file = paste0(data_directory,"/GTEx/Metadata_samples.RDS"))
+
+```
+
+
+
+```{r,injecting outliers based on marginal distribution}
+
+set.seed(100)
+se_marginal_outliers <- injectOutliers(se = se,
+                      freq = 10^-3,
+                      zScore = 3,
+                      inj="both",
+                      lnorm = NULL,
+                      sdlog = NULL)
+
+```
+
+```{r, saving counts with maringal outliers}
+saveRDS(object = se_marginal_outliers,
+        file = paste0(data_directory,"/GTEx/GTEx_counts_Marginal_Outliers.RDS"))
+
+```
+
+```{r, injecting outliers conditional on ischemic time}
+
+se_death <- injectOutliers_per_confounder(
+                      se = se,
+                      freq = 10^-3,
+                      zScore = 3,
+                      inj="both",
+                      lnorm = NULL,
+                      sdlog = NULL,
+                      confounder_vector = as.factor(Metadata_samples$DEATH))
+
+```
+
+```{r, saving counts conditional on ischemic time}
+saveRDS(object = se_death,
+        file = paste0(data_directory,"/GTEx/GTEx_counts_Conditional_Outliers_Ischemic_time.RDS"))
+```
+
+
+```{r, injecting outliers conditional on sex}
+
+se_sex <- injectOutliers_per_confounder(
+                      se = se,
+                      freq = 10^-3,
+                      zScore = 3,
+                      inj="both",
+                      lnorm = NULL,
+                      sdlog = NULL,
+                      confounder_vector = as.factor(Metadata_samples$SEX))
+
+```
+
+```{r, saving counts conditional on sex}
+saveRDS(object = se_sex,
+        file = paste0(data_directory,"/GTEx/GTEx_counts_Conditional_Outliers_Sex.RDS"))
+```
+
+```{r,injecting outliers based on lognormal marginal distribution}
+
+set.seed(100)
+se_lognormal_outliers <- injectOutliers_lognormal(se = se,
+                      freq = 10^-3,
+                      zScore = 3,
+                      inj="both",
+                      lnorm = NULL,
+                      sdlog = NULL)
+
+```
+
+```{r, saving counts with lognormal outliers}
+saveRDS(object = se_lognormal_outliers,
+        file = paste0(data_directory,"/GTEx/GTEx_counts_Lognormal_Outliers.RDS"))
+```
+

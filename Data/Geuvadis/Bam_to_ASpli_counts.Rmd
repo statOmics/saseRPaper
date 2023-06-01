@@ -1,0 +1,68 @@
+---
+title: "Untitled"
+author: "Alex"
+date: "2/1/2023"
+output: html_document
+---
+
+```{r}
+library(ASpli)
+library(GenomicFeatures)
+library(lubridate)
+library(BiocParallel)
+library(data.table)
+library(SummarizedExperiment)
+library(dplyr)
+library(pracma)
+library(PRROC)
+
+```
+
+```{r, import arguments}
+args <- (commandArgs(trailingOnly = TRUE))
+for (i in 1:length(args)) {
+  eval(parse(text = args[[i]]))
+}
+
+```
+
+```{r}
+print(featuresdir)
+print(datadir)
+print(outputdir)
+print(cores)
+print(functiondir)
+```
+
+```{r}
+
+source(paste0(functiondir,"/fitRUVMD-aberrant-splicing.R"))
+source(paste0(functiondir,"/Accessors.R"))
+```
+
+
+```{r}
+
+features <- readRDS(file = featuresdir)
+
+bam = paste0(paste0(datadir,'/Calculated_expression/ERR1880', c(23:31,33:62), '/simulated_star_alignment_ERR1880',c(23:31,33:62),'Aligned.sortedByCoord.out.bam'))
+ 
+targets  <- data.frame(row.names = paste0('Sample',c(1:length(bam))),
+                        bam = bam,
+                        f1  = rep('control',times = length(bam)),
+                        stringsAsFactors = FALSE)
+
+```
+
+
+```{r}
+counts <- wrapper_counts(features=features, targets=targets,
+                      minReadLength = 20, maxISize = 50000,
+                      BPPARAM = cores)
+```
+
+```{r}
+saveRDS(object = counts, file = outputdir)
+```
+
+

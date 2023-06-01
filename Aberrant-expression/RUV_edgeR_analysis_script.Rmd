@@ -1,0 +1,90 @@
+---
+title: "RUV_analysis_script"
+author: "Alex"
+date: "9/22/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, libraries}
+library(lubridate)
+library(BiocParallel)
+library(BiocGenerics)
+library(S4Vectors)
+library(edgeR)
+library(MASS)
+library(pracma)
+library(SummarizedExperiment)
+library(precrec)
+library(PRROC)
+library(BiocGenerics)
+library(limma)
+library(data.table)
+library(DESeq2)
+```
+
+```{r, import arguments}
+args <- (commandArgs(trailingOnly = TRUE))
+for (i in 1:length(args)) {
+  eval(parse(text = args[[i]]))
+}
+
+```
+
+```{r, show arguments}
+print(data_directory)
+print(function_directory)
+print(output_directory)
+print(cores)
+
+```
+
+
+
+```{r, import functions}
+
+source(paste0(function_directory,"/fitRUVMD-edgeR.R"))
+source(paste0(function_directory,"/Accessors.R"))
+source(paste0(function_directory,"/InjectOutliers.R"))
+
+```
+
+```{r, reading data}
+se <- readRDS(file = data_directory)
+metadata(se)$design <- ~1
+
+
+```
+
+
+
+```{r, analysis}
+
+start_time <- Sys.time()
+
+set.seed(100)
+
+se_encdim <- findEncodingDim_RUV_edgeR(se, BPPARAM = cores)
+se_final <- fitRUVMD_edgeR(se_encdim, BPPARAM = cores)
+
+
+end_time <- Sys.time()
+
+time_difference <- seconds(end_time) - seconds(start_time)
+metadata(se_final)$time<- time_difference
+
+```
+
+
+```{r,save results}
+saveRDS(object = se_final,file = output_directory)
+
+```
+
+
+
+
+

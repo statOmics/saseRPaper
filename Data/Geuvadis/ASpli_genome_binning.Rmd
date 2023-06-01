@@ -1,0 +1,45 @@
+---
+title: "Untitled"
+author: "Alex"
+date: "2/1/2023"
+output: html_document
+---
+
+```{r}
+library(ASpli)
+library(GenomicFeatures)
+library(SummarizedExperiment)
+library(BiocParallel)
+```
+
+```{r, import arguments}
+args <- (commandArgs(trailingOnly = TRUE))
+for (i in 1:length(args)) {
+  eval(parse(text = args[[i]]))
+}
+
+```
+
+```{r}
+print(gtfdir)
+print(outputdir)
+print(cores)
+```
+
+```{r}
+genomeTxDb  <- makeTxDbFromGFF(gtfdir,
+                               format = "gtf")
+```
+
+
+```{r}
+features    <- binGenome(genomeTxDb,
+                         cores = cores)
+```
+
+
+```{r}
+saveRDS(object = features, file = outputdir)
+
+```
+

@@ -1,0 +1,176 @@
+---
+title: "Untitled"
+author: "Alex"
+date: "2/22/2023"
+output: html_document
+---
+
+```{r}
+library(FRASER)
+library(data.table)
+set.seed(100)
+```
+
+
+```{r, import arguments}
+args <- (commandArgs(trailingOnly = TRUE))
+for (i in 1:length(args)) {
+  eval(parse(text = args[[i]]))
+}
+
+```
+
+```{r, show arguments}
+print(data_directory)
+print(output_directory)
+
+
+```
+
+```{r}
+#FRASER:::extractSpliceSiteCoordinates -> adapted
+
+extractSpliceSiteCoordinates <- function (junctions, strandspecific = F)
+{
+    if (strandspecific >= 1L) {
+        spliceSiteCoords <- unlist(GRangesList(FRASER:::extractSpliceSiteCoordsPerStrand(junctions,
+            "+"), FRASER:::extractSpliceSiteCoordsPerStrand(junctions,
+            "-")))
+    }
+    else {
+        strand(junctions) <- "*"
+        spliceSiteCoords <- FRASER:::extractSpliceSiteCoordsPerStrand(junctions,
+            "*")
+    }
+    return(unique(sort(spliceSiteCoords)))
+}
+```
+
+```{r}
+sampleTable <- fread(paste0(data_directory,"/Kremer/kremer--hg19--gencode34/sampleAnnotation.tsv"))
+jcounts <- fread(paste0(data_directory,"/Kremer/kremer--hg19--gencode34/k_j_counts.tsv.gz"))
+nonsplitreads <- fread(paste0(data_directory,"/Kremer/kremer--hg19--gencode34/k_theta_counts.tsv.gz"))
+
+
+
+
+
+
+gr_jcounts <- FRASER:::annotateSpliceSite(GRanges(jcounts))
+splicesites <- extractSpliceSiteCoordinates(gr_jcounts,strandspecific = F)
+
+gr_nonsplit_reads <- GRanges(nonsplitreads)
+gr_nonsplit_reads$spliceSiteID <- splicesites$spliceSiteID[match(gr_nonsplit_reads@ranges,splicesites@ranges, nomatch = 0)]
+gr_nonsplit_reads$type <- splicesites$type[match(gr_nonsplit_reads@ranges,splicesites@ranges, nomatch = 0)]
+gr_nonsplit_reads <- gr_nonsplit_reads[!duplicated(gr_nonsplit_reads$spliceSiteID,fromLast=T),]
+
+
+sampleTable$sampleID <- sampleTable$RNA_ID
+sampleTable <- sampleTable[match(colnames(jcounts),sampleTable$sampleID, nomatch = 0)]
+sampleTable$sampleID[1:33] <- paste0("X",sampleTable$sampleID[1:33])
+
+
+fds <- FraserDataSet(colData=sampleTable,
+                     junctions = as.data.frame(gr_jcounts),
+                     spliceSites=as.data.frame(gr_nonsplit_reads))
+```
+
+
+```{r}
+start_time <- Sys.time()
+fds <- calculatePSIValues(fds, types = "jaccard", BPPARAM = MulticoreParam(5))
+saveFraserDataSet(fds = fds,
+                  dir =
+                paste0(output_directory,"/Fraser"),
+                  name = "optimal_hyperparameters_Kremer_disease_jaccard")
+fds <- loadFraserDataSet(
+                  dir =
+                paste0(output_directory,"/Fraser"),
+                  name = "optimal_hyperparameters_Kremer_disease_jaccard")
+
+```
+
+
+```{r}
+fds <- filterExpressionAndVariability(fds, BPPARAM = MulticoreParam(5), filter = TRUE)
+```
+
+
+```{r}
+#fds <- fds[mcols(fds,type ="j")[,"passed"],]
+
+end_filtering_time <- Sys.time()
+
+
+time_filtering <- end_filtering_time - start_time
+```
+
+
+```{r}
+start_time_hyperparameter_optimalisation <- Sys.time()
+set.seed(100)
+
+fds <- optimHyperParams(fds, type = "jaccard", plot = F, q_param = seq(2,11,1), BPPARAM = MulticoreParam(5))
+
+end_time_hyperparameter_optimalisation <- Sys.time()
+
+time_hyperparameter_optimalisation <- end_time_hyperparameter_optimalisation - start_time_hyperparameter_optimalisation
+
+saveRDS(object = time_hyperparameter_optimalisation,
+        file = paste0(output_directory,"/Time_hyperparameter_optimalisation_Fraser_PCA_jaccard_Kremer_disease.RDS"))
+
+saveFraserDataSet(fds = fds,
+                  dir =
+                paste0(output_directory,"/Fraser"),
+                  name = "optimal_hyperparameters_Kremer_disease_jaccard")
+
+```
+
+
+
+
+```{r}
+fds <- loadFraserDataSet(
+                  dir =
+                paste0(output_directory,"/Fraser"),
+                  name = "optimal_hyperparameters_Kremer_disease_jaccard")
+
+start_time_analysis <- Sys.time()
+
+fds <- fit(fds,
+           type = c("jaccard"),
+           q = bestQ(fds, type = "jaccard"),
+              implementation = "PCA",
+              BPPARAM = MulticoreParam(5))
+
+
+
+fds <- calculatePvalues(fds = fds,
+                        type = c("jaccard"),
+                        implementation = "PCA",
+                        BPPARAM = MulticoreParam(5))
+
+
+
+end_time <- Sys.time()
+
+time_analysis <- end_time - start_time_analysis
+time_total <- end_time-start_time
+
+saveRDS(object = time_analysis, 
+        file = paste0(output_directory,"/Time_analysis_Fraser_PCA_jaccard_Kremer_disease.RDS"))
+
+saveRDS(object = time_total,
+        file = paste0(output_directory,"/Time_Fraser_PCA_jaccard_Kremer_disease_total.RDS"))
+
+saveFraserDataSet(fds = fds, 
+          dir = paste0(output_directory,"/Fraser"),
+                  name = "PCA_jaccard_results_Kremer_disease")
+```
+
+
+
+```{r}
+fds <- loadFraserDataSet(dir = "/data/gent/vo/000/gvo00063/Alex/Offsets-paper/Aberrant-splicing/Output_files/Fraser", name = "optimal_hyperparameters_Kremer_disease_jaccard")
+```
+

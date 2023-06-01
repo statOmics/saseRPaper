@@ -1,0 +1,86 @@
+---
+title: "Untitled"
+author: "Alex"
+date: "2/16/2023"
+output: html_document
+---
+
+```{r}
+library(FRASER)
+library(data.table)
+set.seed(100)
+
+```
+
+```{r, import arguments}
+args <- (commandArgs(trailingOnly = TRUE))
+for (i in 1:length(args)) {
+  eval(parse(text = args[[i]]))
+}
+
+```
+
+```{r, show arguments}
+print(data_directory)
+print(output_directory)
+
+
+```
+
+```{r}
+fds <- loadFraserDataSet(
+                  dir = 
+                paste0(output_directory,"/Fraser"),
+                  name = "optimal_hyperparameters_Kremer_disease_jaccard")
+
+saveFraserDataSet(fds = fds,
+                  dir =
+                paste0(output_directory,"/Fraser"),
+                  name = "PCA_AE_jaccard_results_Kremer_disease")
+
+fds <- loadFraserDataSet(
+                  dir = 
+                paste0(output_directory,"/Fraser"),
+                  name = "PCA_AE_jaccard_results_Kremer_disease")
+
+
+
+
+
+```
+
+
+
+
+```{r}
+
+start_time_analysis <- Sys.time()
+
+
+fds <- fit(fds,
+           type = c("jaccard"),
+           q = bestQ(fds, type = "jaccard"),
+              implementation = "AE-weighted",
+              BPPARAM = MulticoreParam(10))
+
+
+
+fds <- calculatePvalues(fds = fds,
+                        type = c("jaccard"),
+                        implementation = "AE-weighted",
+                        BPPARAM = MulticoreParam(10))
+
+
+end_time <- Sys.time()
+
+time_analysis <- end_time - start_time_analysis
+
+saveRDS(object = time_analysis, 
+        file = paste0(output_directory,"/Time_analysis_Fraser_AE_weighted_jaccard_Kremer_disease.RDS"))
+
+
+saveFraserDataSet(fds = fds, 
+          dir = paste0(output_directory,"/Fraser"),
+                  name = "PCA_AE_jaccard_results_Kremer_disease")
+```
+

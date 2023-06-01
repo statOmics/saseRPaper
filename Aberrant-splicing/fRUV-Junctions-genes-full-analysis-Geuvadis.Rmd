@@ -1,0 +1,157 @@
+---
+title: "Untitled"
+author: "Alex"
+date: "2/1/2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(ASpli)
+library(GenomicFeatures)
+library(lubridate)
+library(BiocParallel)
+library(data.table)
+library(SummarizedExperiment)
+library(dplyr)
+library(pracma)
+library(PRROC)
+set.seed(100)
+```
+
+```{r, import arguments}
+args <- (commandArgs(trailingOnly = TRUE))
+for (i in 1:length(args)) {
+  eval(parse(text = args[[i]]))
+}
+
+```
+
+```{r, show arguments}
+print(data_directory)
+print(function_directory)
+print(output_directory)
+
+
+```
+
+
+```{r}
+source(paste0(function_directory,
+              "/fitRUVMD-aberrant-splicing.R"))
+source(paste0(function_directory, 
+              "/Accessors.R"))
+
+```
+
+
+
+```{r}
+data <- readRDS(file = paste0(data_directory, 
+                              "/Geuvadis/ASpli-counts.RDS"))
+
+```
+
+```{r}
+start_time <- Sys.time()
+data_duplicate <- data
+
+NovelJunctionCounts <- FilterJunctionCounts(data)
+seNovelJunctionCounts <- getCountsSplicing(NovelJunctionCounts, type = "junction")
+seNovelJunctionCounts <- OffsetSplicing(seNovelJunctionCounts)
+
+allJunctionCounts <- data_duplicate@metadata$junctionCounts[,1:(8+length(colData(data)$Names))]
+colnames(allJunctionCounts)[colnames(allJunctionCounts) == "gene"] <- "locus"
+data_duplicate@metadata$junctionCounts <- allJunctionCounts
+seAllJunctionCounts <- getCountsSplicing(data_duplicate, type = "junction")
+seAllJunctionCounts <- OffsetSplicing(seAllJunctionCounts)
+
+
+unknownJunctions <- rownames(assays(seAllJunctionCounts)$offsets[rowData(seAllJunctionCounts)$locus == "noHit",])
+
+if(!is.null(unknownJunctions)){
+  order <- match(unknownJunctions, rownames(seAllJunctionCounts), nomatch=0)
+  new_offsets <- assays(seAllJunctionCounts)$offsets[order,]
+  assays(seAllJunctionCounts)$offsets[unknownJunctions[order != 0],] <- new_offsets
+   assays(seAllJunctionCounts)$offsets[unknownJunctions[order == 0],] <- 
+     assays(seAllJunctionCounts)$counts[unknownJunctions[order == 0],]
+  
+    levels(rowData(seAllJunctionCounts)$locus) <- c(rowData(seAllJunctionCounts)$locus, 
+                                                      rowData(seNovelJunctionCounts)[unknownJunctions[order != 0],"locus"],
+                                                      paste0("noJunctionCluster", 1:sum(order == 0)))
+  rowData(seAllJunctionCounts)[unknownJunctions[order != 0],"locus"]  <- 
+    factor(rowData(seNovelJunctionCounts)[unknownJunctions[order != 0],"locus"])
+  
+ 
+  rowData(seAllJunctionCounts)[unknownJunctions[order == 0],"locus"]  <- paste0("noJunctionCluster", 1:sum(order == 0))
+
+}
+
+filter <- filterByExpr(seAllJunctionCounts,
+                            min.count = 10,
+                            min.total.count = 15,
+                            large.n = 10,
+                            min.prop = 0.7)
+
+seAllJunctionCounts <- seAllJunctionCounts[filter, ]
+metadata(seAllJunctionCounts)$design <- ~1
+
+end_time_filtering <- Sys.time()
+
+time_filtering <- end_time_filtering - start_time
+saveRDS(object = time_filtering, 
+        file = paste0(output_directory,"/Time_fRUV_junctions_gene_filtering_Geuvadis.RDS"))
+
+```
+
+
+```{r}
+start_time_hyperparameter_optimalisation <- Sys.time()
+
+seFindEncDim <- findEncodingDimRUVSplicing(seAllJunctionCounts,
+                                  dimensions = seq(1,10,1),
+                                  freq = 10^-2,
+                                  BPPARAM = MulticoreParam(workers = 1))
+
+end_time_hyperparameter_optimalisation <- Sys.time()
+
+time_hyperparameter_optimalisation <- end_time_hyperparameter_optimalisation -
+  start_time_hyperparameter_optimalisation
+
+
+saveRDS(object = time_hyperparameter_optimalisation, 
+        file = paste0(output_directory,"/Time_fRUV_junctions_gene_hyperparameter_optimalisation_Geuvadis.RDS"))
+
+saveRDS(object = seFindEncDim, 
+        file = paste0(output_directory,"/seOptimalHyperparameters_fRUV_junctions_gene_Geuvadis.RDS"))
+```
+
+
+```{r}
+start_time_analysis <- Sys.time()
+
+seFit <- fitRUVMD(se = seFindEncDim, 
+                  dimensions = metadata(seFindEncDim)$optimalEncDim)
+
+end_time <- Sys.time()
+
+time_analysis <- end_time - start_time_analysis
+total_time <- end_time - start_time
+
+saveRDS(object = time_analysis, 
+        file = paste0(output_directory,"/Time_fRUV_junctions_gene_analysis_Geuvadis.RDS"))
+
+saveRDS(object = total_time, 
+        file = paste0(output_directory,"/Time_fRUV_junctions_gene_total_Geuvadis.RDS"))
+
+saveRDS(object = seFit, 
+        file = paste0(output_directory,"/seFit_fRUV_junctions_gene_Geuvadis.RDS"))
+```
+
+
+
+

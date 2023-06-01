@@ -1,0 +1,86 @@
+---
+title: "Untitled"
+author: "Alex"
+date: "9/22/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, libraries}
+library(OUTRIDER)
+library(BiocParallel)
+library(lubridate)
+```
+
+```{r, import arguments}
+args <- (commandArgs(trailingOnly = TRUE))
+for (i in 1:length(args)) {
+  eval(parse(text = args[[i]]))
+}
+
+```
+
+```{r, show arguments}
+print(data_directory)
+print(function_directory)
+print(output_directory)
+print(autoencoder)
+print(number_of_genes)
+print(cores)
+
+```
+
+
+```{r}
+source(paste0(function_directory,"/Sample_level_auc_calculator.R"))
+```
+
+```{r, reading data}
+rds <- readRDS(file = data_directory)
+rds <- OutriderDataSet(se = rds)
+
+```
+
+```{r, analysis}
+set.seed(100)
+samples_used <- sample(c(1:dim(rds)[1]), size = dim(rds)[1], replace = F)
+
+rds <- estimateSizeFactors(rds)
+
+time_usage <- vector(length = length(c(number_of_genes)))
+names(time_usage) <- c(number_of_genes)
+
+
+for(i in c(1:length(c(number_of_genes)))){
+  start_time <- Sys.time()
+
+  rds_loop <- OUTRIDER(ods = rds[samples_used[1:number_of_genes[i]],],
+                              implementation = autoencoder,
+                              q = 50,
+                              BPPARAM = cores)
+  
+  end_time <- Sys.time()
+  time_difference <- seconds(end_time) - seconds(start_time)
+  
+  time_usage[i] <- time_difference
+  
+
+
+}
+
+
+
+```
+
+
+```{r,save results}
+saveRDS(object = time_usage, file = output_directory)
+
+
+```
+
+
+

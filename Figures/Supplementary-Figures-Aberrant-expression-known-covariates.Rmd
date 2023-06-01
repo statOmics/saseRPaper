@@ -1,0 +1,138 @@
+---
+author: "Alex"
+date: "9/22/2022"
+output: html_document
+---
+```{r, libraries}
+library(ggplot2)
+library(dplyr)
+library(OUTRIDER)
+library(magrittr)
+library(patchwork)
+
+```
+
+
+```{r, import arguments}
+args <- (commandArgs(trailingOnly = TRUE))
+for (i in 1:length(args)) {
+  eval(parse(text = args[[i]]))
+}
+
+```
+
+```{r}
+print(data_directory)
+print(output_directory)
+```
+
+
+```{r}
+rds_GTEx_RUV_Sex_no_covariates='/RUV_Analysis_Conditional_outliers_Sex.RDS'
+rds_GTEx_RUV_Sex_covariates='/RUV_Analysis_Conditional_outliers_Sex_with_covariates.RDS'
+rds_GTEx_RUV_Ischemic_time_no_covariates='/RUV_Analysis_Conditional_outliers_Ischemic_time.RDS'
+rds_GTEx_RUV_Ischemic_time_covariates='/RUV_Analysis_Conditional_outliers_Ischemic_time_with_covariates.RDS'
+
+```
+
+
+```{r, import functions}
+AUC_calculation <- function(se){
+  
+  require(precrec)
+  
+  auc_matrix <- matrix(NA, ncol = ncol(se), nrow = 1)
+    
+    for(i in c(1:ncol(se))){
+    scores <-  -c(unlist(assays(se)$pValue[,i]))
+    labels <-  c(unlist(abs(assays(se)$Outliers[,i])))
+    msmdat_simulation <- mmdata(c(join_scores(scores,chklen=F)),
+                                c(join_labels(labels,chklen=F)))
+    mscurves_simulation <- evalmod(msmdat_simulation)
+    auc_matrix[,i] <- subset(auc(mscurves_simulation),curvetypes == "PRC")$aucs
+      
+   }
+
+  
+  return(auc_matrix)
+  
+  
+
+}
+```
+
+
+```{r}
+
+
+
+
+rds_GTEx_RUV_Sex_no_covariates <- readRDS(file = paste0(data_directory,rds_GTEx_RUV_Sex_no_covariates))
+rds_GTEx_RUV_Sex_covariates <- readRDS(file = paste0(data_directory,rds_GTEx_RUV_Sex_covariates))
+rds_GTEx_RUV_Ischemic_time_no_covariates <- 
+  readRDS(file = paste0(data_directory,rds_GTEx_RUV_Ischemic_time_no_covariates))
+rds_GTEx_RUV_Ischemic_time_covariates <- readRDS(file = paste0(data_directory,rds_GTEx_RUV_Ischemic_time_covariates))
+
+
+```
+
+
+```{r,auc calculation}
+list_rds <- list(rds_GTEx_RUV_Sex_no_covariates,
+     rds_GTEx_RUV_Sex_covariates,
+     rds_GTEx_RUV_Ischemic_time_no_covariates,
+     rds_GTEx_RUV_Ischemic_time_covariates
+     
+)
+
+list_auc <- lapply(list_rds, AUC_calculation)
+
+```
+
+```{r}
+df_performance <- data.frame("aucs" = c(unlist(list_auc)),
+                             "method" = c(rep(c("Latent factors",
+                                    "Known covariates + Latent factors", 
+                                    "Latent factors",
+                                    "Known covariates + Latent factors"),
+                                  each = 249)),
+                             "Covariate" = rep(c("Sex", "Ischemic time"), each = 249*2))
+
+df_performance$method <- factor(df_performance$method,levels = c("Latent factors",
+                                    "Known covariates + Latent factors"))
+```
+
+
+
+```{r}
+bp.vals <- function(x, probs=c(0.05, 0.25, 0.5,0.75, .95)) {
+  r <- quantile(x, probs=probs , na.rm=TRUE)
+  names(r) <- c("ymin", "lower", "middle", "upper", "ymax")
+  r
+}
+```
+
+
+```{r}
+plot_1 <- ggplot(data = df_performance ,aes(x = method, y = aucs, col = method))  + stat_summary(fun.data = bp.vals, geom="boxplot") + geom_jitter(size = 1)  + scale_color_manual(values = c("Latent factors" = "#E69F00", "Known covariates + Latent factors"="#D55E00")) + ylab("Area under the curve per sample") + theme_bw() + ylim(c(0,1.0001)) + theme(legend.position = "right", legend.title = element_blank())+theme(axis.text.x=element_blank(), axis.title.x=element_blank(), axis.ticks.x = element_blank()) +
+  theme(axis.text=element_text(size=10), axis.title=element_text(size=12), strip.text = element_text(size=12))  + facet_wrap(~Covariate)
+print(plot_1)
+
+```
+
+```{r}
+ggsave(paste0(output_directory,"/Supplementary-Figure-5.png"), plot_1, 
+       device = "png", width = 9, height = 4.5, dpi = 300)
+ggsave(paste0(output_directory,"/Supplementary-Figure-5.eps"), plot_1, 
+       device = cairo_ps, width = 9, height = 4.5, dpi = 300)
+ggsave(paste0(output_directory,"/Supplementary-Figure-5.pdf"), plot_1, 
+       device = "pdf", width = 9, height = 4.5, dpi = 300)
+
+```
+
+
+
+
+
+
+

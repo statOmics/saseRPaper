@@ -1,0 +1,134 @@
+
+```{r}
+library(FRASER)
+library(data.table)
+set.seed(100)
+```
+
+```{r, import arguments}
+args <- (commandArgs(trailingOnly = TRUE))
+for (i in 1:length(args)) {
+  eval(parse(text = args[[i]]))
+}
+
+```
+
+```{r, show arguments}
+print(data_directory)
+print(output_directory)
+
+
+```
+
+```{r}
+fds_hyperparams <- loadFraserDataSet(dir = paste0(output_directory,"/Fraser"),
+                                     name = "optimal_hyperparameters_Kremer_disease")
+```
+
+```{r}
+#FRASER:::extractSpliceSiteCoordinates -> adapted
+
+extractSpliceSiteCoordinates <- function (junctions, strandspecific = F)
+{
+    if (strandspecific >= 1L) {
+        spliceSiteCoords <- unlist(GRangesList(FRASER:::extractSpliceSiteCoordsPerStrand(junctions,
+            "+"), FRASER:::extractSpliceSiteCoordsPerStrand(junctions,
+            "-")))
+    }
+    else {
+        strand(junctions) <- "*"
+        spliceSiteCoords <- FRASER:::extractSpliceSiteCoordsPerStrand(junctions,
+            "*")
+    }
+    return(unique(sort(spliceSiteCoords)))
+}
+```
+
+```{r}
+sampleTable <- fread(paste0(data_directory,"/Kremer/kremer--hg19--gencode34/sampleAnnotation.tsv"))
+jcounts <- fread(paste0(data_directory,"/Kremer/kremer--hg19--gencode34/k_j_counts.tsv.gz"))
+nonsplitreads <- fread(paste0(data_directory,"/Kremer/kremer--hg19--gencode34/k_theta_counts.tsv.gz"))
+
+
+
+gr_jcounts <- FRASER:::annotateSpliceSite(GRanges(jcounts))
+splicesites <- extractSpliceSiteCoordinates(gr_jcounts,strandspecific = F)
+
+gr_nonsplit_reads <- GRanges(nonsplitreads)
+gr_nonsplit_reads$spliceSiteID <- splicesites$spliceSiteID[match(gr_nonsplit_reads@ranges,splicesites@ranges, nomatch = 0)]
+gr_nonsplit_reads$type <- splicesites$type[match(gr_nonsplit_reads@ranges,splicesites@ranges, nomatch = 0)]
+gr_nonsplit_reads <- gr_nonsplit_reads[!duplicated(gr_nonsplit_reads$spliceSiteID,fromLast=T),]
+
+sampleTable$sampleID <- sampleTable$RNA_ID
+sampleTable <- sampleTable[match(colnames(jcounts),sampleTable$sampleID, nomatch = 0)]
+sampleTable$sampleID[1:33] <- paste0("X",sampleTable$sampleID[1:33])
+
+
+
+fds <- FraserDataSet(colData=sampleTable,
+                     junctions = as.data.frame(gr_jcounts),
+                     spliceSites=as.data.frame(gr_nonsplit_reads))
+
+saveFraserDataSet(fds = fds, 
+        dir = paste0(data_directory,"/Fraser"),
+                  name = "filtered_Kremer_disease")
+
+saveFraserDataSet(fds = fds, 
+        dir = paste0(data_directory,"/Fraser"),
+                  name = "filtered_Kremer_disease_copy")
+
+fds <- loadFraserDataSet(
+        dir = paste0(data_directory,"/Fraser"),
+                  name = "filtered_Kremer_disease")
+```
+
+
+```{r}
+fds <- calculatePSIValues(fds, BPPARAM = MulticoreParam(1))
+fds <- filterExpressionAndVariability(fds, BPPARAM = MulticoreParam(1))
+
+fds <- fds[mcols(fds,type ="j")[,"passed"],]
+
+
+
+```
+
+
+
+```{r}
+
+start_time_analysis <- Sys.time()
+
+fds <- fit(fds,
+           type = c("psi3"),
+           q = bestQ(fds_hyperparams, type = "psi3"),
+              implementation = "AE-weighted",
+              BPPARAM = MulticoreParam(1))
+
+fds <- calculatePvalues(fds = fds,
+                        type = c("psi3"),
+                        implementation = "AE-weighted",
+                        BPPARAM = MulticoreParam(1))
+
+fds <- fit(fds,
+           type = c("psi5"),
+           q = bestQ(fds_hyperparams, type = "psi5"),
+              implementation = "AE-weighted",
+              BPPARAM = MulticoreParam(1))
+
+fds <- calculatePvalues(fds = fds,
+                        type = c("psi5"),
+                        implementation = "AE-weighted",
+                        BPPARAM = MulticoreParam(1))
+
+end_time <- Sys.time()
+
+time_analysis <- end_time - start_time_analysis
+
+saveRDS(object = time_analysis,
+        file = paste0(output_directory,"/Time_analysis_Fraser_AE_weighted_Kremer_disease.RDS"))
+
+saveFraserDataSet(fds = fds, 
+          dir = paste0(output_directory,"/Fraser"),
+                  name = "PCA_AE_weighted_results_Kremer_disease")
+```

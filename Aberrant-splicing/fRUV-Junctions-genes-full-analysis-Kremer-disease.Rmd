@@ -1,0 +1,193 @@
+---
+title: "Untitled"
+author: "Alex"
+date: "2/22/2023"
+output: html_document
+---
+
+```{r}
+library(ASpli)
+library(GenomicFeatures)
+library(lubridate)
+library(BiocParallel)
+library(SummarizedExperiment)
+library(dplyr)
+library(pracma)
+library(PRROC)
+library(FRASER)
+library(data.table)
+library(TxDb.Hsapiens.UCSC.hg19.knownGene)
+set.seed(100)
+```
+
+```{r, import arguments}
+args <- (commandArgs(trailingOnly = TRUE))
+for (i in 1:length(args)) {
+  eval(parse(text = args[[i]]))
+}
+
+```
+
+```{r, show arguments}
+print(data_directory)
+print(output_directory)
+print(function_directory)
+
+
+```
+
+
+```{r}
+source(paste0(function_directory,
+              "/fitRUVMD-aberrant-splicing.R"))
+source(paste0(function_directory, 
+              "/Accessors.R"))
+
+```
+
+
+
+```{r}
+# adapted from FRASER:::extractSpliceSiteCoordinates
+
+extractSpliceSiteCoordinates <- function (junctions, strandspecific = F) 
+{
+    if (strandspecific >= 1L) {
+        spliceSiteCoords <- unlist(GRangesList(FRASER:::extractSpliceSiteCoordsPerStrand(junctions, 
+            "+"), FRASER:::extractSpliceSiteCoordsPerStrand(junctions, 
+            "-")))
+    }
+    else {
+        strand(junctions) <- "*"
+        spliceSiteCoords <- FRASER:::extractSpliceSiteCoordsPerStrand(junctions, 
+            "*")
+    }
+    return(unique(sort(spliceSiteCoords)))
+}
+```
+
+```{r}
+sampleTable <- fread(paste0(data_directory,"/Kremer/kremer--hg19--gencode34/sampleAnnotation.tsv"))
+jcounts <- fread(paste0(data_directory,"/Kremer/kremer--hg19--gencode34/k_j_counts.tsv.gz"))
+nonsplitreads <- fread(paste0(data_directory,"/Kremer/kremer--hg19--gencode34/k_theta_counts.tsv.gz"))
+
+
+gr_jcounts <- FRASER:::annotateSpliceSite(GRanges(jcounts))
+splicesites <- extractSpliceSiteCoordinates(gr_jcounts,strandspecific = F)
+
+gr_nonsplit_reads <- GRanges(nonsplitreads)
+gr_nonsplit_reads$spliceSiteID <- splicesites$spliceSiteID[match(gr_nonsplit_reads@ranges,splicesites@ranges, nomatch = 0)]
+gr_nonsplit_reads$type <- splicesites$type[match(gr_nonsplit_reads@ranges,splicesites@ranges, nomatch = 0)]
+gr_nonsplit_reads <- gr_nonsplit_reads[!duplicated(gr_nonsplit_reads$spliceSiteID,fromLast=T),]
+
+sampleTable$sampleID <- sampleTable$RNA_ID
+sampleTable <- sampleTable[match(colnames(jcounts),sampleTable$sampleID, nomatch = 0)]
+sampleTable$sampleID[1:33] <- paste0("X",sampleTable$sampleID[1:33])
+
+
+fds <- FraserDataSet(colData=sampleTable,
+                     junctions = as.data.frame(gr_jcounts),
+                     spliceSites=as.data.frame(gr_nonsplit_reads))
+fds <- annotateRangesWithTxDb(fds, txdb = TxDb.Hsapiens.UCSC.hg19.knownGene)
+
+
+df <- as.data.frame(gr_jcounts)[c("seqnames","start","end","strand",sampleTable$sampleID)]
+
+```
+
+
+
+```{r}
+jcounts <- df
+sample_names <- colnames(jcounts)[-c(1:4)]
+jcounts$locus <- rowRanges(fds)$hgnc_symbol
+
+data <- SummarizedExperiment(metadata = list("binCounts" = jcounts),
+                             colData = list("Names" = sample_names))
+
+```
+
+
+```{r}
+saveRDS(object = data, file = paste0(data_directory,"/Kremer/fRUV_bin_counts_Kremer_disease.RDS"))
+
+```
+
+
+```{r}
+start_time <- Sys.time()
+
+
+filtered_junctioncounts <- FilterBinCounts(data)
+seJunctionCounts <- getCountsSplicing(filtered_junctioncounts, type = "bin")
+seJunctionCounts <- seJunctionCounts[!(is.na(rowData(seJunctionCounts)$locus)),]
+seJunctionCounts <- OffsetSplicing(seJunctionCounts)
+
+filter <- filterByExpr(seJunctionCounts,
+                            min.count = 10,
+                            min.total.count = 15,
+                            large.n = 10,
+                            min.prop = 0.7)
+
+seJunctionCounts <- seJunctionCounts[filter, ]
+metadata(seJunctionCounts)$design <- ~1
+
+end_time_filtering <- Sys.time()
+
+time_filtering <- end_time_filtering - start_time
+saveRDS(object = time_filtering, 
+        file = paste0(output_directory,"/Time_bins_filtering_Kremer_disease.RDS"))
+
+```
+
+
+```{r}
+start_time_hyperparameter_optimalisation <- Sys.time()
+
+seFindEncDim <- findEncodingDimRUVSplicing(seJunctionCounts,
+                                  dimensions = seq(1,10,1),
+                                  freq = 10^-2,
+                                  BPPARAM = MulticoreParam(workers = 1))
+
+end_time_hyperparameter_optimalisation <- Sys.time()
+
+time_hyperparameter_optimalisation <- end_time_hyperparameter_optimalisation -
+  start_time_hyperparameter_optimalisation
+
+
+saveRDS(object = time_hyperparameter_optimalisation, 
+        file = paste0(output_directory,"/Time_bins_hyperparameter_optimalisation_Kremer_disease.RDS"))
+
+saveRDS(object = seFindEncDim, 
+        file = paste0(output_directory,"/seOptimalHyperparameters_bins_Kremer_disease.RDS"))
+```
+
+
+```{r}
+start_time_analysis <- Sys.time()
+
+seFit <- fitRUVMD(se = seFindEncDim, 
+                  dimensions = metadata(seFindEncDim)$optimalEncDim)
+
+end_time <- Sys.time()
+
+time_analysis <- end_time - start_time_analysis
+total_time <- end_time - start_time
+
+saveRDS(object = time_analysis, 
+        file = paste0(output_directory,"/Time_bins_Kremer_disease_analysis.RDS"))
+
+saveRDS(object = total_time, 
+        file = paste0(output_directory,"/Time_bins_Kremer_disease_total.RDS"))
+
+saveRDS(object = seFit, 
+        file = paste0(output_directory,"/seFit_bins_Kremer_disease_outliers.RDS"))
+```
+
+
+
+
+
+
+
+

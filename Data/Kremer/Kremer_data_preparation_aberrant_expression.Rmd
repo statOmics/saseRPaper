@@ -1,0 +1,95 @@
+---
+title: "GTEx data filtering"
+author: "Alexandre Segers"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, import arguments}
+args <- (commandArgs(trailingOnly = TRUE))
+for (i in 1:length(args)) {
+  eval(parse(text = args[[i]]))
+}
+
+```
+
+```{r}
+print(data_directory)
+print(function_directory)
+```
+
+```{r, libraries}
+library(readxl)
+library(OUTRIDER)
+library(DESeq2)
+library(MASS)
+source(paste0(function_directory,"/InjectOutliers.R"))
+source(paste0(function_directory,"/Accessors.R"))
+source(paste0(function_directory,"/fitRUVMD.R"))
+
+
+```
+
+
+```{r}
+Kremer <- read.delim(file = paste0(data_directory,
+                        "/Kremer/kremer--hg19--gencode34/geneCounts.tsv.gz"),header = T)
+rownames(Kremer) <- Kremer$geneID
+Kremer <- Kremer[,-1]
+Kremer_ods <- OutriderDataSet(countData = Kremer)
+Kremer_ods <- computeGeneLength(Kremer_ods,
+                                gtfFile=paste0(data_directory,"/Kremer/gencode.v34lift37.annotation.gtf.gz"))
+Kremer_ods <- filterExpression(Kremer_ods)
+Kremer_ods <- Kremer_ods[rowSums(counts(Kremer_ods)==0)/119<0.75,]
+
+se <- SummarizedExperiment(assays = SimpleList("counts" = counts(Kremer_ods)))
+
+
+```
+
+
+```{r,saving counts and metadata}
+saveRDS(object = se, file = paste0(data_directory,"/Kremer/Kremer_counts.RDS"))
+
+```
+
+```{r,injecting outliers based on marginal distribution}
+
+set.seed(100)
+se_marginal_outliers <- injectOutliers(se = se,
+                      freq = 10^-3,
+                      zScore = 3,
+                      inj="both",
+                      lnorm = NULL,
+                      sdlog = NULL)
+
+```
+
+```{r, saving counts with marginal outliers}
+saveRDS(object = se_marginal_outliers,
+        file = paste0(data_directory,"/Kremer/Kremer_counts_Marginal_Outliers.RDS"))
+
+```
+
+
+```{r,injecting outliers based on lognormal marginal distribution}
+
+set.seed(100)
+se_lognormal_outliers <- injectOutliers_lognormal(se = se,
+                      freq = 10^-3,
+                      zScore = 3,
+                      inj="both",
+                      lnorm = NULL,
+                      sdlog = NULL)
+
+```
+
+```{r, saving counts with lognormal outliers}
+saveRDS(object = se_lognormal_outliers,
+        file = paste0(data_directory,"/Kremer/Kremer_counts_Lognormal_Outliers.RDS"))
+```
+

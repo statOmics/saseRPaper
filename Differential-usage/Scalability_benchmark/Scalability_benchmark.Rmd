@@ -1,0 +1,288 @@
+```{r}
+#!/usr/bin/env Rscript
+# root.dir <- paste0("./Differential-usage/Scalability_benchmark")
+# setwd(root.dir)
+root.dir <- getwd()
+print(root.dir)
+
+# 1. Scalability benchmark of DESeq2_offset
+
+## 1.1. Source the edgeR_offset method file
+source("./DTU_methods/apply_DESeq2_offset.R")
+
+## 1.2. Source the first configuration file (specifies #cells and #transcripts in data)
+source("./Configuration/configFile_1.R")
+
+## 1.3. Perform the scalability analysis on the first configuration file
+
+DESeq2_offset_1 <- list()
+round = 0
+invisible(gc())
+
+for (i in L$groupSizes){
+	for (j in L$transcripts_amount){
+                round = round + 1
+		print(paste("Two groups of", i, "cells each with", j, "transcripts"))
+		run_DESeq2_offset(L, countData, tx2gene) #function outputs the object result
+		DESeq2_offset_1[round] <- list(result) # runtimes stored in a list
+
+		print(paste0("Runtime (elapsed) = ", unname(result$timing[3]), " seconds"))
+		print("---------------------------------------------------") # print progress
+	}
+}
+
+save(DESeq2_offset_1, file = "./Results/DESeq2_offset_1.RData") # I save this list as RData
+
+## 1.4. Source the second configuration file (specifies #cells and #transcripts in data)
+source("./Configuration/configFile_2.R")
+
+## 1.5. Perform the scalability analysis on the second configuration file
+
+DESeq2_offset_2 <- list()
+round = 0
+invisible(gc())
+
+for (i in L$groupSizes){
+	for (j in L$transcripts_amount){
+                round = round + 1
+		print(paste("Two groups of", i, "cells each with", j, "transcripts"))
+		run_DESeq2_offset(L, countData, tx2gene) #function outputs the object result
+		DESeq2_offset_2[round] <- list(result) # runtimes stored in a list
+
+		print(paste0("Runtime (elapsed) = ", unname(result$timing[3]), " seconds"))
+		print("---------------------------------------------------") # print progress
+	}
+}
+
+save(DESeq2_offset_2, file = "./Results/DESeq2_offset_2.RData") # I save this list as RData
+
+# 2. Scalability benchmark of egdeR_offset wiht estimateDisp
+
+## 2.1. Source the edgeR_offset method file
+source("./DTU_methods/apply_edgeR_offset.R")
+
+## 2.2. Source the first configuration file (specifies #cells and #transcripts in data)
+source("./Configuration/configFile_1.R")
+
+## 2.3. Perform the scalability analysis on the second configuration file
+
+edgeR_offset_estDisp_1 <- list()
+round = 0
+invisible(gc())
+
+for (i in L$groupSizes){
+	for (j in L$transcripts_amount){
+                round = round + 1
+		print(paste("Two groups of", i, "cells each with", j, "transcripts"))
+		run_edgeR_offset(L, countData, tx2gene, estimateDisp = TRUE) #function outputs the object result
+		edgeR_offset_estDisp_1[round] <- list(result) # runtimes stored in a list
+
+		print(paste0("Runtime (elapsed) = ", unname(result$timing[3]), " seconds"))
+		print("---------------------------------------------------") # print progress
+	}
+}
+
+save(edgeR_offset_estDisp_1, file = "./Results/edgeR_offset_estDisp_1.RData") # I save this list as RData
+
+## 2.4. Source the second configuration file (specifies #cells and #transcripts in data)
+source("./Configuration/configFile_2.R")
+
+## 2.5. Perform the scalability analysis on the second configuration file
+
+edgeR_offset_estDisp_2 <- list()
+round = 0
+invisible(gc())
+
+for (i in L$groupSizes){
+	for (j in L$transcripts_amount){
+                round = round + 1
+		print(paste("Two groups of", i, "cells each with", j, "transcripts"))
+		run_edgeR_offset(L, countData, tx2gene, estimateDisp = TRUE) #function outputs the object result
+		edgeR_offset_estDisp_2[round] <- list(result) # runtimes stored in a list
+
+		print(paste0("Runtime (elapsed) = ", unname(result$timing[3]), " seconds"))
+		print("---------------------------------------------------") # print progress
+	}
+}
+
+save(edgeR_offset_estDisp_2, file = "./Results/edgeR_offset_estDisp_2.RData") # I save this list as RData
+
+# 3. Scalability benchmark of satuRn
+
+## 3.1. Source the satuRn method file
+source("./DTU_methods/apply_satuRn.R")
+
+## 3.2. Source the first configuration file (specifies #cells and #transcripts in data)
+source("./Configuration/configFile_1.R")
+
+## 3.3. Perform the scalability analysis on the second configuration file
+
+satuRn_1 <- list()
+round = 0
+invisible(gc())
+
+for (i in L$groupSizes){
+	for (j in L$transcripts_amount){
+                round = round + 1
+		print(paste("Two groups of", i, "cells each with", j, "transcripts"))
+		run_satuRn(L, countData, tx2gene) #function outputs the object result
+		satuRn_1[round] <- list(result) # runtimes stored in a list
+
+		print(paste0("Runtime (elapsed) = ", unname(result$timing[3]), " seconds"))
+		print("---------------------------------------------------") # print progress
+	}
+}
+
+save(satuRn_1, file = "./Results/satuRn_1.RData") # I save this list as RData
+
+## 3.4. Source the second configuration file (specifies #cells and #transcripts in data)
+source("./Configuration/configFile_2.R")
+
+## 3.5. Perform the scalability analysis on the second configuration file
+
+satuRn_2 <- list()
+round = 0
+invisible(gc())
+
+for (i in L$groupSizes){
+	for (j in L$transcripts_amount){
+                round = round + 1
+		print(paste("Two groups of", i, "cells each with", j, "transcripts"))
+		run_satuRn(L, countData, tx2gene) #function outputs the object result
+		satuRn_2[round] <- list(result) # runtimes stored in a list
+
+		print(paste0("Runtime (elapsed) = ", unname(result$timing[3]), " seconds"))
+		print("---------------------------------------------------") # print progress
+	}
+}
+
+save(satuRn_2, file = "./Results/satuRn_2.RData") # I save this list as RData
+
+# 4. Scalability benchmark of DEXSeq
+
+## 4.1. Source the DEXSeq method file
+source("./DTU_methods/apply_DEXSeq.R")
+
+## 4.2. Source the second configuration file
+source("./Configuration/configFile_2.R")
+
+## 4.3. Perform the scalability analysis on the second configuration file
+
+DEXSeq_2 <- list()
+round = 0
+invisible(gc())
+
+for (i in L$groupSizes){
+	for (j in L$transcripts_amount){
+                round = round + 1
+		print(paste("Two groups of", i, "cells each with", j, "transcripts"))
+		run_DEXSeq(L, countData, tx2gene) #function outputs the object result
+		DEXSeq_2[round] <- list(result) # I store this object in a list
+
+		print(paste0("Runtime (elapsed) = ", unname(result$timing[3]), " seconds"))
+		print("---------------------------------------------------") # print progress
+	}
+}
+
+save(DEXSeq_2, file = "./Results/DEXSeq_2.RData") # I save this list as RData
+
+## 4.4. Source the third configuration file
+source("./Configuration/configFile_3.R")
+
+## 4.5. Perform the scalability analysis on the second configuration file
+
+DEXSeq_3 <- list()
+round = 0
+invisible(gc())
+
+for (i in L$groupSizes){
+	for (j in L$transcripts_amount){
+                round = round + 1
+		print(paste("Two groups of", i, "cells each with", j, "transcripts"))
+		run_DEXSeq(L, countData, tx2gene) #function outputs the object result
+		DEXSeq_3[round] <- list(result) # I store this object in a list
+
+		print(paste0("Runtime (elapsed) = ", unname(result$timing[3]), " seconds"))
+		print("---------------------------------------------------") # print progress
+	}
+}
+
+save(DEXSeq_3, file = "./Results/DEXSeq_3.RData") # I save this list as RData
+
+## 4.6. Source the third configuration file
+source("./Configuration/configFile_4.R")
+
+## 4.7. Perform the scalability analysis on the second configuration file
+
+DEXSeq_4 <- list()
+round = 0
+invisible(gc())
+
+for (i in L$groupSizes){
+	for (j in L$transcripts_amount){
+                round = round + 1
+		print(paste("Two groups of", i, "cells each with", j, "transcripts"))
+		run_DEXSeq(L, countData, tx2gene) #function outputs the object result
+		DEXSeq_4[round] <- list(result) # I store this object in a list
+
+		print(paste0("Runtime (elapsed) = ", unname(result$timing[3]), " seconds"))
+		print("---------------------------------------------------") # print progress
+	}
+}
+
+save(DEXSeq_4, file = "./Results/DEXSeq_4.RData") # I save this list as RData
+
+
+# 5. Scalability benchmark of edgeR_diffsplice
+
+## 5.1. Source the edgeR_diffsplice method file
+source("./DTU_methods/apply_edgeR_diffsplice.R")
+
+## 5.2. Source the first configuration file (specifies #cells and #transcripts in data)
+source("./Configuration/configFile_1.R")
+
+## 5.3. Perform the scalability analysis on the second configuration file
+
+edgeR_diffsplice_1 <- list()
+round = 0
+invisible(gc())
+
+for (i in L$groupSizes){
+	for (j in L$transcripts_amount){
+                round = round + 1
+		print(paste("Two groups of", i, "cells each with", j, "transcripts"))
+		run_edgeR_diffsplice(L, countData, tx2gene) #function outputs the object result
+		edgeR_diffsplice_1[round] <- list(result) # runtimes stored in a list
+
+		print(paste0("Runtime (elapsed) = ", unname(result$timing[3]), " seconds"))
+		print("---------------------------------------------------") # print progress
+	}
+}
+
+save(edgeR_diffsplice_1, file = "./Results/edgeR_diffsplice_1.RData") # I save this list as RData
+
+## 5.4. Source the second configuration file (specifies #cells and #transcripts in data)
+source("./Configuration/configFile_2.R")
+
+## 5.5. Perform the scalability analysis on the second configuration file
+
+edgeR_diffsplice_2 <- list()
+round = 0
+invisible(gc())
+
+for (i in L$groupSizes){
+	for (j in L$transcripts_amount){
+                round = round + 1
+		print(paste("Two groups of", i, "cells each with", j, "transcripts"))
+		run_edgeR_diffsplice(L, countData, tx2gene) #function outputs the object result
+		edgeR_diffsplice_2[round] <- list(result) # runtimes stored in a list
+
+		print(paste0("Runtime (elapsed) = ", unname(result$timing[3]), " seconds"))
+		print("---------------------------------------------------") # print progress
+	}
+}
+
+save(edgeR_diffsplice_2, file = "./Results/edgeR_diffsplice_2.RData") # I save this list as RData
+
+```
+

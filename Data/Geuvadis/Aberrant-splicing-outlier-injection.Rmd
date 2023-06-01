@@ -1,0 +1,180 @@
+---
+title: "Untitled"
+author: "Alex"
+date: "1/13/2023"
+output: html_document
+---
+
+
+```{r, import arguments}
+args <- (commandArgs(trailingOnly = TRUE))
+for (i in 1:length(args)) {
+  eval(parse(text = args[[i]]))
+}
+
+```
+
+```{r}
+print(data_directory)
+print(sample)
+print(output_dir)
+print(freq)
+```
+
+```{r}
+library(dplyr)
+library(gtools)
+library(dplyr)
+library(biomaRt)
+library(stringr)
+```
+
+
+```{r}
+isoform.initial <- read.delim(paste0(data_directory, "/", sample,".isoforms.results"), 
+                              header = TRUE, as.is = TRUE)
+seed_number <- as.integer(str_sub(sample, -2, -1))
+```
+
+
+
+```{r}
+gene_summary <- isoform.initial %>% group_by(gene_id) %>%
+    summarise(expected_gene_count_gr1 = sum(expected_count),
+              effective_gene_length = sum(effective_length * IsoPct/100),
+              nbr_isoforms = length(IsoPct),
+              nbr_expr_isoforms = length(which(IsoPct > 0)),
+              nbr_expr_isoforms10 = length(which(IsoPct > 10)),
+              deltaPSIinjected = abs(diff(IsoPct[order(IsoPct, decreasing = TRUE)[1:2]])))
+for (i in 1) {
+    gene_summary[, paste0("geneCount")] <- 
+        round(gene_summary$expected_gene_count_gr1)
+      
+    gene_summary[, paste0("geneRPK")] <- 
+      gene_summary[, paste0("geneCount")]/
+      gene_summary$effective_gene_length * 1e3
+  }
+```
+
+```{r}
+
+  rdirichlet2 <- function(n, alpha) {
+    a <- rdirichlet(n, alpha)
+    a[is.na(a)] <- 0
+    a
+  }
+
+  isoform_summary <- isoform.initial
+  ## Add some variability to the isoform percentages
+  isoform_summary <- isoform_summary %>% group_by(gene_id) %>% 
+      mutate(IsoPctDirichlet = c(rdirichlet2(1, IsoPct/100 * 100))) %>%
+      setNames(c(colnames(isoform_summary), paste0("sample_IsoPct"))) %>%
+      ungroup()
+
+  
+```
+
+
+```{r}
+set.seed(100+seed_number)
+nbr_diff_spliced <- round(sum(gene_summary$nbr_expr_isoforms10 > 2)*freq)
+
+ds_genes <- 
+    gene_summary$gene_id[sample(Reduce(intersect, 
+                                       list(which(gene_summary$nbr_expr_isoforms10 >= 2),
+                                          which(gene_summary$expected_gene_count_gr1 > 100),
+                                          which(gene_summary$deltaPSIinjected > 30))), 
+                                nbr_diff_spliced, replace = FALSE)]
+isoform_summary_nonds <- isoform_summary[!(isoform_summary$gene_id %in% ds_genes), ]
+isoform_summary_ds <- isoform_summary[isoform_summary$gene_id %in% ds_genes, ]
+```
+
+
+
+```{r}
+  mutate_IsoPct <- function(w, ref) {
+    o <- order(ref, decreasing = TRUE)[1:2]
+    w[rev(o)] <- w[o]
+    w
+  }
+  mutated_IsoPct <- function(ref) {
+    o <- order(ref, decreasing = TRUE)[1:2]
+    w <- rep(0, length(ref))
+    w[o] <- 1
+    w
+  }
+  
+isoform_summary_ds_switched <- isoform_summary_ds %>% group_by(gene_id) %>%
+    mutate(sample_IsoPct = mutate_IsoPct(sample_IsoPct, IsoPct),
+           diff_IsoPct = -diff(sort(IsoPct, decreasing = TRUE))[1]/100,
+           gene_ds_status = 1,
+           transcript_ds_status = mutated_IsoPct(IsoPct))
+
+
+  isoform_summary_nonds_finalised <- isoform_summary_nonds %>% group_by(gene_id) %>%
+    mutate(diff_IsoPct = -diff(sort(IsoPct, decreasing = TRUE))[1]/100,
+           gene_ds_status = 0,
+           transcript_ds_status = 0)
+  
+isoform_summary <- rbind(isoform_summary_nonds_finalised, isoform_summary_ds_switched)
+
+  
+
+
+  
+final_summary <- merge(isoform_summary, gene_summary, by.x = "gene_id", 
+                         by.y = "gene_id", all = TRUE)
+
+  for (i in 1) {
+    final_summary[, paste0("isoformRPK")] <- 
+      final_summary[, paste0("geneRPK")] * 
+      final_summary[, paste0("sample_IsoPct")]
+  }
+  
+  for (i in 1) {
+    final_summary[, paste0("isoformCount")] <- 
+      final_summary[, paste0("isoformRPK")] * 
+      final_summary$effective_length/1000
+  }
+  
+  for (i in 1) {
+    final_summary[, paste0("isoformTPM")] <- 
+      round(final_summary[, paste0("isoformCount")] / 
+              final_summary$expected_count * final_summary$TPM, 2)
+  }
+  
+  final_summary[is.na(final_summary)] <- 0
+  
+    idx <- grep("isoformTPM", colnames(final_summary))
+  for (i in idx) {
+    final_summary[, i] <- final_summary[, i]/sum(final_summary[, i]) * 1e6
+  }
+    
+for (i in 1) {
+    tmp <- isoform.initial
+    tmp$TPM <- final_summary[match(tmp$transcript_id, 
+                                   final_summary$transcript_id), 
+                             paste0("isoformTPM")]
+    tmp$TPM <- round(tmp$TPM, digits = 2)
+    tmp$TPM <- as.character(tmp$TPM)
+    tmp$TPM[tmp$TPM == "0"] <- "0.00"
+    tmp$expected_count <- as.character(tmp$expected_count)
+    tmp$expected_count[tmp$expected_count == "0"] <- "0.00"
+    tmp$FPKM <- as.character(tmp$FPKM)
+    tmp$FPKM[tmp$FPKM == "0"] <- "0.00"
+    tmp$IsoPct <- as.character(tmp$IsoPct)
+    tmp$IsoPct[tmp$IsoPct == "0"] <- "0.00"
+    write.table(tmp, file = paste0(output_dir,'/',sample,"_generation_details.txt"), 
+                row.names = FALSE, col.names = TRUE, quote = FALSE, sep = "\t")
+  }
+write.table(final_summary, file = paste0(output_dir,'/',sample,"_final_details.txt"), 
+              row.names = FALSE, col.names = TRUE, quote = FALSE, sep = "\t")
+
+  
+```
+
+
+
+
+
+
