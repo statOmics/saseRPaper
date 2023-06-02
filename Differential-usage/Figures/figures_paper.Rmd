@@ -479,11 +479,27 @@ ggsave(paste0(output_directory,"/Supplementary-Figure-1.pdf"), Figure_1s,
 
 ```{r}
 data_30K <- bulk_results[which(bulk_results$TXs_round == 30000),]
+data_30K_sub <- data_30K[data_30K$method %in% c("DESeq2", "edgeR", "edgeR_diffsplice", "DEXSeq", "satuRn"),]
+data_30K_sub$method[data_30K_sub$method=="edgeR_diffsplice"] <- c("edgeR-diffspliceDGE")
+data_30K_sub$method <- factor(data_30K_sub$method, levels = c("DESeq2", "edgeR", "edgeR-diffspliceDGE", "DEXSeq", "satuRn"))
+
+plot2a_legend <- ggplot(data = data_30K_sub, aes(x=groupSize,y=elapsed/60,color=method)) +
+  geom_line() +
+  geom_point(key_glyph = "blank") +
+  scale_color_manual(values=c("DESeq2" = "#009E73", "edgeR" = "#0072B2", "edgeR-diffspliceDGE" = "#F0E442", 
+                              "DEXSeq" = "#E69F00", "satuRn" = "black"))+
+  theme_bw() +
+  ylab("Elapsed  time (min)") + 
+  xlab("Number of samples per group") + 
+  theme(axis.text=element_text(size=10), axis.title=element_text(size=12))  + 
+  theme( legend.title = element_blank(),legend.position = "bottom", 
+         legend.text = element_text(size = 12))
+
 data_30K_sub <- data_30K[data_30K$method %in% c("DESeq2", "edgeR", "edgeR_diffsplice", "satuRn"),]
 data_30K_sub$method[data_30K_sub$method=="edgeR_diffsplice"] <- c("edgeR-diffspliceDGE")
 data_30K_sub$method <- factor(data_30K_sub$method, levels = c("DESeq2", "edgeR", "edgeR-diffspliceDGE", "satuRn"))
 
-plot2a <- ggplot(data = data_30K_sub, aes(x=groupSize,y=elapsed/60,color=method)) +
+plot2a<- ggplot(data = data_30K_sub, aes(x=groupSize,y=elapsed/60,color=method)) +
   geom_line() +
   geom_point(key_glyph = "blank") +
   scale_color_manual(values=c("DESeq2" = "#009E73", "edgeR" = "#0072B2", "edgeR-diffspliceDGE" = "#F0E442", 
@@ -632,7 +648,7 @@ plot2c
 
 
 ```{r}
-legend <- get_legend(plot2a)
+legend <- get_legend(plot2a_legend)
 prow <- plot_grid(plot2b + theme(legend.position = "none"), plot2c + theme(legend.position = "none"),
                   plot2a + theme(legend.position = "none"),
                   labels = c("A","B","C"), ncol = 3,
