@@ -487,9 +487,9 @@ df_results <- data.frame("auc" = c(auc_fRUV_bins,
                                    auc_Fraser_BB_jaccard,
                                    auc_Fraser_AE_jaccard,
                                    auc_fRUV_jaccard),
-                         "method" = c(rep(c("saseR bins",
-                                      "saseR ASpli",
-                                      "saseR junctions",
+                         "method" = c(rep(c("saseR-bins",
+                                      "saseR-ASpli",
+                                      "saseR-junctions",
                                       "FRASER-PCA psi[3]",
                                       "FRASER-PCA psi[5]",
                                       "FRASER-BB-Decoder psi[3]",
@@ -499,14 +499,14 @@ df_results <- data.frame("auc" = c(auc_fRUV_bins,
                                       "FRASER-PCA 2.0",
                                       "FRASER-BB-Decoder 2.0",
                                       "FRASER-Autoencoder 2.0",
-                                      "saseR jaccard"),each = 39)))
+                                      "saseR-jaccard"),each = 39)))
 
 
 df_results$method <- factor(df_results$method, levels = 
-                              c("saseR bins",
-                                      "saseR junctions",
-                                      "saseR ASpli",
-                                      "saseR jaccard",
+                              c("saseR-bins",
+                                      "saseR-junctions",
+                                      "saseR-ASpli",
+                                      "saseR-jaccard",
                                       "FRASER-Autoencoder psi[3]",
                                       "FRASER-Autoencoder psi[5]",
                                       "FRASER-Autoencoder 2.0",
@@ -569,9 +569,9 @@ labels <- join_labels(c(unlist(unique_outliers_fRUV_bins)),
 msmdat_simulation <- mmdata(scores,
                             labels,
                             modnames =
-                              c("saseR bins",
-                                "saseR ASpli",
-                                "saseR junctions",
+                              c("saseR-bins",
+                                "saseR-ASpli",
+                                "saseR-junctions",
                                 "FRASER-PCA psi[3]",
                                 "FRASER-PCA psi[5]",
                                 "FRASER-BB-Decoder psi[3]",
@@ -581,14 +581,14 @@ msmdat_simulation <- mmdata(scores,
                                 "FRASER-PCA 2.0",
                                 "FRASER-BB-Decoder 2.0",
                                 "FRASER-Autoencoder 2.0",
-                                "saseR jaccard"),
+                                "saseR-jaccard"),
                             dsids = c(1:13))
 mscurves_simulation <- evalmod(msmdat_simulation)
 df_pr <- as.data.frame(mscurves_simulation)
-df_pr$modname <- factor(df_pr$modname,levels = c("saseR bins",
-                                "saseR junctions",
-                                "saseR ASpli",
-                                "saseR jaccard",
+df_pr$modname <- factor(df_pr$modname,levels = c("saseR-bins",
+                                "saseR-junctions",
+                                "saseR-ASpli",
+                                "saseR-jaccard",
                                 "FRASER-Autoencoder psi[3]",
                                 "FRASER-Autoencoder psi[5]",
                                 "FRASER-Autoencoder 2.0",
@@ -638,20 +638,20 @@ times <- as.numeric(c(Time_fRUV_bins, Time_fRUV_junctions, Time_fRUV_junctions_g
            Time_Fraser_AE_psi,Time_Fraser_AE_jaccard))
 
 df_time <- data.frame("time" = times/60, 
-                      method = c("saseR bins",
-                                     "saseR ASpli",
-                                     "saseR junctions",
-                                     "saseR jaccard",
+                      method = c("saseR-bins",
+                                     "saseR-ASpli",
+                                     "saseR-junctions",
+                                     "saseR-jaccard",
                                      "FRASER-PCA psi", 
                                      "FRASER-PCA 2.0",
                                      "FRASER-BB-Decoder psi", 
                                      "FRASER-BB-Decoder 2.0",
                                      "FRASER-Autoencoder psi", 
                                      "FRASER-Autoencoder 2.0"))
-df_time$method <- factor(df_time$method,levels = c("saseR bins",
-                                     "saseR junctions",
-                                     "saseR ASpli",
-                                     "saseR jaccard",
+df_time$method <- factor(df_time$method,levels = c("saseR-bins",
+                                     "saseR-junctions",
+                                     "saseR-ASpli",
+                                     "saseR-jaccard",
                                      "FRASER-Autoencoder psi", 
                                      "FRASER-Autoencoder 2.0",
                                      "FRASER-BB-Decoder psi", 
@@ -681,16 +681,16 @@ bp.vals <- function(x, probs=c(0.05, 0.25, 0.5,0.75, .95)) {
 ```{r}
 
 
-plot_1 <- ggplot(data = df_results %>% filter(method %in% c("saseR bins",
-                                      "saseR ASpli",
-                                      "saseR junctions",
+plot_1 <- ggplot(data = df_results %>% filter(method %in% c("saseR-bins",
+                                      "saseR-ASpli",
+                                      "saseR-junctions",
                                       "FRASER-PCA 2.0",
                                       "FRASER-BB-Decoder 2.0",
                                       "FRASER-Autoencoder 2.0"))
                  , aes(x = method, y = auc, col = method)) + stat_summary(fun.data = bp.vals, geom="boxplot") + geom_jitter(size = 0.2)  + 
-  scale_color_manual(values = c("saseR bins" = "#E69F00", 
-                                "saseR ASpli" = "#D55E00", 
-                                "saseR junctions" = "#CC79A7",
+  scale_color_manual(values = c("saseR-bins" = "#E69F00", 
+                                "saseR-ASpli" = "#D55E00", 
+                                "saseR-junctions" = "#CC79A7",
                                 "FRASER-PCA 2.0"= "#009E73", 
                                 "FRASER-BB-Decoder 2.0" = "#56B4E9",
                                 "FRASER-Autoencoder 2.0" = "#0072B2")) + 
@@ -702,24 +702,24 @@ print(plot_1)
 
 
 ```{r}
-plot_2 <- ggplot(data = df_pr%>% filter(type == "PRC" & (modname %in% c("saseR bins",
-                                "saseR ASpli",
-                                "saseR junctions",
+plot_2 <- ggplot(data = df_pr%>% filter(type == "PRC" & (modname %in% c("saseR-bins",
+                                "saseR-ASpli",
+                                "saseR-junctions",
                                 "FRASER-Autoencoder 2.0",
                                       "FRASER-BB-Decoder 2.0",
                                       "FRASER-PCA 2.0"))), aes(x = x, y = y, col = modname)) + geom_line() + ggtitle(label = "") + ylab("Precision")  + xlab("Recall") + theme_bw() + 
   theme(axis.text=element_text(size=10), axis.title=element_text(size=12))  + scale_color_manual(values = 
-                              c("saseR bins" = "#E69F00", 
-                                "saseR ASpli"="#D55E00", 
-                                "saseR junctions" = "#CC79A7",
+                              c("saseR-bins" = "#E69F00", 
+                                "saseR-ASpli"="#D55E00", 
+                                "saseR-junctions" = "#CC79A7",
                                 "FRASER-PCA 2.0"= "#009E73", 
                                 "FRASER-BB-Decoder 2.0" = "#56B4E9",
                                 "FRASER-Autoencoder 2.0" = "#0072B2"), 
-                              breaks = c("saseR bins", 
+                              breaks = c("saseR-bins", 
                                 "FRASER-Autoencoder 2.0", 
-                                "saseR junctions", 
+                                "saseR-junctions", 
                                 "FRASER-BB-Decoder 2.0",
-                                "saseR ASpli",
+                                "saseR-ASpli",
                                 "FRASER-PCA 2.0"))+ 
   theme( legend.title = element_blank(),legend.position = "bottom", 
          legend.text = element_text(size = 12))
@@ -728,15 +728,15 @@ print(plot_2)
 ```
 
 ```{r}
-df_plot_3 <- df_time %>% filter(method %in% c("saseR bins",
-                                      "saseR ASpli",
-                                      "saseR junctions",
+df_plot_3 <- df_time %>% filter(method %in% c("saseR-bins",
+                                      "saseR-ASpli",
+                                      "saseR-junctions",
                                       "FRASER-PCA 2.0",
                                       "FRASER-BB-Decoder 2.0",
                                       "FRASER-Autoencoder 2.0"))
-df_plot_3$method <- factor(df_plot_3$method, levels = c("saseR bins",
-                                      "saseR junctions",
-                                      "saseR ASpli",
+df_plot_3$method <- factor(df_plot_3$method, levels = c("saseR-bins",
+                                      "saseR-junctions",
+                                      "saseR-ASpli",
                                       "FRASER-Autoencoder 2.0",
                                       "FRASER-BB-Decoder 2.0",
                                       "FRASER-PCA 2.0"))
@@ -746,16 +746,16 @@ df_plot_3$time <- round(df_plot_3$time,2)
 
 ```{r}
 time_labels <- c("6 min","1 min", "2 min", "1.7 h", "13.2 h", "20.1 h")
-plot_3 <- ggplot(data = df_time %>% filter(method %in% c("saseR bins",
-                                      "saseR ASpli",
-                                      "saseR junctions",
+plot_3 <- ggplot(data = df_time %>% filter(method %in% c("saseR-bins",
+                                      "saseR-ASpli",
+                                      "saseR-junctions",
                                       "FRASER-PCA 2.0",
                                       "FRASER-BB-Decoder 2.0",
                                       "FRASER-Autoencoder 2.0")), aes(y = time, x= method,fill = method)) + geom_bar(stat="identity", alpha =0.8) +  
   ylab("Computational time (minutes)")+ scale_y_continuous(trans='log10')+ 
-  scale_fill_manual(values = c("saseR bins" = "#E69F00", 
-                                "saseR ASpli"="#D55E00", 
-                                "saseR junctions" = "#CC79A7",
+  scale_fill_manual(values = c("saseR-bins" = "#E69F00", 
+                                "saseR-ASpli"="#D55E00", 
+                                "saseR-junctions" = "#CC79A7",
                                 "FRASER-PCA 2.0"= "#009E73", 
                                 "FRASER-BB-Decoder 2.0" = "#56B4E9",
                                 "FRASER-Autoencoder 2.0" = "#0072B2"))+
@@ -887,27 +887,27 @@ ggsave(paste0(output_directory,"/Supplementary-Figure-6.pdf"), Figure_2,
 # Supplementary figure with saseR jaccard
 
 ```{r}
-df_plot_4 <- df_results %>% filter(method %in% c("saseR bins",
-                                      "saseR ASpli",
-                                      "saseR junctions",
-                                      "saseR jaccard",
+df_plot_4 <- df_results %>% filter(method %in% c("saseR-bins",
+                                      "saseR-ASpli",
+                                      "saseR-junctions",
+                                      "saseR-jaccard",
                                       "FRASER-PCA 2.0",
                                       "FRASER-BB-Decoder 2.0",
                                       "FRASER-Autoencoder 2.0"))
 
-df_plot_4$method <- factor(df_plot_4$method, levels = c("saseR bins",
-                                      "saseR junctions",
-                                      "saseR ASpli",
-                                      "saseR jaccard",
+df_plot_4$method <- factor(df_plot_4$method, levels = c("saseR-bins",
+                                      "saseR-junctions",
+                                      "saseR-ASpli",
+                                      "saseR-jaccard",
                                       "FRASER-BB-Decoder 2.0",
                                       "FRASER-Autoencoder 2.0",
                                       "FRASER-PCA 2.0"))
 
 plot_4 <- ggplot(data = df_plot_4, aes(x = method, y = auc, col = method)) + stat_summary(fun.data = bp.vals, geom="boxplot") + geom_jitter(size = 0.2) + 
-  scale_color_manual(values = c("saseR bins" = "#E69F00", 
-                                "saseR ASpli"="#D55E00", 
-                                "saseR junctions" = "#CC79A7",
-                                "saseR jaccard" = "#000000",
+  scale_color_manual(values = c("saseR-bins" = "#E69F00", 
+                                "saseR-ASpli"="#D55E00", 
+                                "saseR-junctions" = "#CC79A7",
+                                "saseR-jaccard" = "#000000",
                                 "FRASER-PCA 2.0"= "#009E73", 
                                 "FRASER-BB-Decoder 2.0" = "#56B4E9",
                                 "FRASER-Autoencoder 2.0" = "#0072B2")) + 
@@ -939,10 +939,10 @@ labels <- join_labels(c(unlist(unique_outliers_fRUV_bins)),
 msmdat_simulation <- mmdata(scores,
                             labels,
                             modnames =
-                              c("saseR bins",
-                                "saseR ASpli",
-                                "saseR junctions",
-                                "saseR jaccard",
+                              c("saseR-bins",
+                                "saseR-ASpli",
+                                "saseR-junctions",
+                                "saseR-jaccard",
                                 "FRASER-PCA 2.0",
                                 "FRASER-BB-Decoder 2.0",
                                 "FRASER-Autoencoder 2.0"),
@@ -953,28 +953,28 @@ df_pr <- data.frame(mscurves_simulation)
 
 
 ```{r}
-plot_2 <- ggplot(data = df_pr%>% filter(type == "PRC" & (modname %in% c("saseR bins",
-                                "saseR ASpli",
-                                "saseR junctions",
-                                "saseR jaccard",
+plot_2 <- ggplot(data = df_pr%>% filter(type == "PRC" & (modname %in% c("saseR-bins",
+                                "saseR-ASpli",
+                                "saseR-junctions",
+                                "saseR-jaccard",
                                 "FRASER-Autoencoder 2.0",
                                       "FRASER-BB-Decoder 2.0",
                                       "FRASER-PCA 2.0"))), aes(x = x, y = y, col = modname)) + geom_line() + ggtitle(label = "") + ylab("Precision")  + xlab("Recall") + theme_bw() + 
   theme(axis.text=element_text(size=10), axis.title=element_text(size=12))  + scale_color_manual(values = 
-                              c("saseR bins" = "#E69F00", 
-                                "saseR ASpli"="#D55E00", 
-                                "saseR junctions" = "#CC79A7",
-                                "saseR jaccard" = "#000000",
+                              c("saseR-bins" = "#E69F00", 
+                                "saseR-ASpli"="#D55E00", 
+                                "saseR-junctions" = "#CC79A7",
+                                "saseR-jaccard" = "#000000",
                                 "FRASER-PCA 2.0"= "#009E73", 
                                 "FRASER-BB-Decoder 2.0" = "#56B4E9",
                                 "FRASER-Autoencoder 2.0" = "#0072B2"), 
-                              breaks = c("saseR bins", 
+                              breaks = c("saseR-bins", 
                                 "FRASER-Autoencoder 2.0", 
-                                "saseR junctions", 
+                                "saseR-junctions", 
                                 "FRASER-BB-Decoder 2.0",
-                                "saseR ASpli",
+                                "saseR-ASpli",
                                 "FRASER-PCA 2.0",
-                                "saseR jaccard"))+ 
+                                "saseR-jaccard"))+ 
   theme( legend.title = element_blank(),legend.position = "bottom", 
          legend.text = element_text(size = 12))
 print(plot_2)

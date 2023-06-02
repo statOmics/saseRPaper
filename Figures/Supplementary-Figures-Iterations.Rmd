@@ -424,8 +424,8 @@ df_3 <- data.frame(mscurves_simulation)
 
 ```{r}
 df_merged <- rbind(df_1,df_2,df_3)
-df_merged$method <- rep(c("saseR bins","saseR ASpli junctions", "saseR junctions"), each = 10030)
-df_merged$method <- factor(df_merged$method, levels = c("saseR bins", "saseR junctions", "saseR ASpli junctions"))
+df_merged$method <- rep(c("saseR-bins","saseR-ASpli junctions", "saseR-junctions"), each = 10030)
+df_merged$method <- factor(df_merged$method, levels = c("saseR-bins", "saseR-junctions", "saseR-ASpli junctions"))
 ```
 
 

@@ -548,8 +548,8 @@ df_results <- data.frame("auc" =
                              auc_Fraser_PCA_jaccard,
                              auc_Fraser_PCA_AE_jaccard
                             ),
-                         "method" = rep(c("saseR junctions",
-                                          "saseR jaccard",
+                         "method" = rep(c("saseR-junctions",
+                                          "saseR-jaccard",
                                           "FRASER-PCA psi3",
                                           "FRASER-Autoencoder psi3",
                                           "FRASER-PCA psi5",
@@ -557,8 +557,8 @@ df_results <- data.frame("auc" =
                                           "FRASER-PCA 2.0",
                                           "FRASER-Autoencoder 2.0"),
                                         each = 119))
-df_results$method <- factor(df_results$method, levels = c("saseR junctions",
-                                                          "saseR jaccard",
+df_results$method <- factor(df_results$method, levels = c("saseR-junctions",
+                                                          "saseR-jaccard",
                                           "FRASER-PCA 2.0",
                                           "FRASER-Autoencoder 2.0",
                                           "FRASER-PCA psi3",
@@ -569,7 +569,7 @@ df_results$method <- factor(df_results$method, levels = c("saseR junctions",
 
 ```
 ```{r}
-plot_1 <- ggplot(data = df_results %>% filter(method %in% c("saseR junctions",
+plot_1 <- ggplot(data = df_results %>% filter(method %in% c("saseR-junctions",
                                           "FRASER-PCA 2.0",
                                           "FRASER-Autoencoder 2.0",
                                           "FRASER-PCA psi3",
@@ -579,7 +579,7 @@ plot_1 <- ggplot(data = df_results %>% filter(method %in% c("saseR junctions",
         axis.title=element_text(size=14,face="bold"))  + theme_bw() + ylim(c(0,1.0001)) + theme(legend.position = "none")+
   theme(axis.text=element_text(size=10), axis.title=element_text(size=12)) + scale_color_manual(values = 
                               c(
-                                "saseR junctions" = "#CC79A7",
+                                "saseR-junctions" = "#CC79A7",
                                 "FRASER-PCA psi3" = "burlywood1",
                                 "FRASER-Autoencoder psi3" = "red3",
                                 "FRASER-PCA psi5" = "cyan1",
@@ -615,7 +615,7 @@ labels <- join_labels(c(unlist(abs(outlier_genes_fRUV_jaccard))),
 msmdat_simulation <- mmdata(scores,
                             labels,
                             modnames =
-                              c("saseR junctions","saseR jaccard",
+                              c("saseR-junctions","saseR-jaccard",
                                 "FRASER-PCA psi3","FRASER-Autoencoder psi3",
                                 "FRASER-PCA psi5","FRASER-Autoencoder psi5",
                                 "FRASER-PCA 2.0","FRASER-Autoencoder 2.0"
@@ -623,7 +623,7 @@ msmdat_simulation <- mmdata(scores,
                             dsids = c(1:8))
 mscurves_simulation <- evalmod(msmdat_simulation)
 df_pr <- data.frame(mscurves_simulation)
-df_pr$modname <- factor(df_pr$modname, levels = c("saseR junctions","saseR jaccard",
+df_pr$modname <- factor(df_pr$modname, levels = c("saseR-junctions","saseR-jaccard",
                                 "FRASER-PCA psi3","FRASER-Autoencoder psi3",
                                 "FRASER-PCA psi5","FRASER-Autoencoder psi5",
                                 "FRASER-PCA 2.0","FRASER-Autoencoder 2.0"
@@ -631,7 +631,7 @@ df_pr$modname <- factor(df_pr$modname, levels = c("saseR junctions","saseR jacca
 ```
 
 ```{r}
-labels <- expression(paste("saseR junctions"),
+labels <- expression(paste("saseR-junctions"),
                      paste("FRASER-PCA ", psi[3]),
                      paste("FRASER-Autoencoder ", psi[3]),
                      paste("FRASER-PCA ", psi[5]),
@@ -639,13 +639,13 @@ labels <- expression(paste("saseR junctions"),
                      paste("FRASER-PCA 2.0"),
                      paste("FRASER-Autoencoder 2.0"))
 
-plot_2 <- ggplot(data = df_pr%>% filter(type == "PRC" & (modname %in% c("saseR junctions",
+plot_2 <- ggplot(data = df_pr%>% filter(type == "PRC" & (modname %in% c("saseR-junctions",
                                 "FRASER-PCA psi3","FRASER-Autoencoder psi3",
                                 "FRASER-PCA psi5","FRASER-Autoencoder psi5",
                                 "FRASER-PCA 2.0","FRASER-Autoencoder 2.0"))), aes(x = x, y = y, col = modname)) + geom_line() + ggtitle(label = "") + ylab("Precision")  + xlab("Recall") + theme_bw() + 
   theme(axis.text=element_text(size=10), axis.title=element_text(size=12))  + scale_color_manual(values = 
                               c(
-                                "saseR junctions" = "#CC79A7",
+                                "saseR-junctions" = "#CC79A7",
                                 "FRASER-PCA psi3" = "burlywood1",
                                 "FRASER-Autoencoder psi3" = "red3",
                                 "FRASER-PCA psi5" = "cyan1",
@@ -687,8 +687,8 @@ ggsave(paste0(output_directory,"/Supplementary-Figure-10.pdf"), Figure_1,
 
 
 ```{r}
-plot_1 <- ggplot(data = df_results %>% filter(method %in% c("saseR junctions",
-                                                            "saseR jaccard",
+plot_1 <- ggplot(data = df_results %>% filter(method %in% c("saseR-junctions",
+                                                            "saseR-jaccard",
                                           "FRASER-PCA 2.0",
                                           "FRASER-Autoencoder 2.0",
                                           "FRASER-PCA psi3",
@@ -698,8 +698,8 @@ plot_1 <- ggplot(data = df_results %>% filter(method %in% c("saseR junctions",
         axis.title=element_text(size=14,face="bold"))  + theme_bw() + ylim(c(0,1.0001)) + theme(legend.position = "none")+
   theme(axis.text=element_text(size=10), axis.title=element_text(size=12)) + scale_color_manual(values = 
                               c(
-                                "saseR junctions" = "#CC79A7",
-                                "saseR jaccard" = "#000000",
+                                "saseR-junctions" = "#CC79A7",
+                                "saseR-jaccard" = "#000000",
                                 "FRASER-PCA psi3" = "burlywood1",
                                 "FRASER-Autoencoder psi3" = "red3",
                                 "FRASER-PCA psi5" = "cyan1",
@@ -714,8 +714,8 @@ plot_1
 
 
 ```{r}
-labels <- expression(paste("saseR junctions"),
-                     paste("saseR jaccard"),
+labels <- expression(paste("saseR-junctions"),
+                     paste("saseR-jaccard"),
                      paste("FRASER-PCA ", psi[3]),
                      paste("FRASER-Autoencoder ", psi[3]),
                      paste("FRASER-PCA ", psi[5]),
@@ -723,14 +723,14 @@ labels <- expression(paste("saseR junctions"),
                      paste("FRASER-PCA 2.0"),
                      paste("FRASER-Autoencoder 2.0"))
 
-plot_2 <- ggplot(data = df_pr%>% filter(type == "PRC" & (modname %in% c("saseR junctions", "saseR jaccard",
+plot_2 <- ggplot(data = df_pr%>% filter(type == "PRC" & (modname %in% c("saseR-junctions", "saseR-jaccard",
                                 "FRASER-PCA psi3","FRASER-Autoencoder psi3",
                                 "FRASER-PCA psi5","FRASER-Autoencoder psi5",
                                 "FRASER-PCA 2.0","FRASER-Autoencoder 2.0"))), aes(x = x, y = y, col = modname)) + geom_line() + ggtitle(label = "") + ylab("Precision")  + xlab("Recall") + theme_bw() + 
   theme(axis.text=element_text(size=10), axis.title=element_text(size=12))  + scale_color_manual(values = 
                               c(
-                                "saseR junctions" = "#CC79A7",
-                                "saseR jaccard" = "#000000",
+                                "saseR-junctions" = "#CC79A7",
+                                "saseR-jaccard" = "#000000",
                                 "FRASER-PCA psi3" = "burlywood1",
                                 "FRASER-Autoencoder psi3" = "red3",
                                 "FRASER-PCA psi5" = "cyan1",
