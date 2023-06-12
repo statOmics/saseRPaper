@@ -821,14 +821,14 @@ print(plot_4)
 
 ```{r}
 labels <- expression(paste("FRASER-Autoencoder ", psi[3]), 
-                     paste("FRASER-Autoencoder ", psi[5]), 
-                     paste("FRASER-Autoencoder 2.0"), 
-                     paste("FRASER-BB-Decoder ", psi[3]), 
-                     paste("FRASER-BB-Decoder ", psi[5]),
                      paste("FRASER-BB-Decoder 2.0"),
+                     paste("FRASER-Autoencoder ", psi[5]), 
                      paste("FRASER-PCA ", psi[3]),
+                     paste("FRASER-Autoencoder 2.0"), 
                      paste("FRASER-PCA ", psi[5]),
-                     paste("FRASER-PCA 2.0"))
+                     paste("FRASER-BB-Decoder ", psi[3]), 
+                     paste("FRASER-PCA 2.0"),
+                     paste("FRASER-BB-Decoder ", psi[5]))
 
 
 plot_5 <- 
@@ -843,7 +843,7 @@ plot_5 <-
                                 "FRASER-BB-Decoder 2.0",
                                 "FRASER-Autoencoder 2.0"))), aes(x = x, y = y, col = modname)) + geom_line() + ggtitle(label = "") + ylab("Precision")  + xlab("Recall") + theme_bw() + 
   theme(axis.text=element_text(size=12), axis.title=element_text(size=14))  + 
-  scale_color_manual(values = c("FRASER-PCA psi[3]" = "burlywood1",                                   
+  scale_color_manual(values = c("FRASER-PCA psi[3]" = "burlywood1",                   
                                 "FRASER-BB-Decoder psi[3]"= "coral",
                                 "FRASER-Autoencoder psi[3]"= "red3",
                                 "FRASER-PCA psi[5]"= "cyan1",
@@ -852,9 +852,18 @@ plot_5 <-
                                 "FRASER-PCA 2.0"= "#009E73", 
                                 "FRASER-BB-Decoder 2.0" = "#56B4E9",
                                 "FRASER-Autoencoder 2.0" = "#0072B2"), 
-                     labels = labels)+ 
+                     labels = labels,
+                     breaks = c("FRASER-Autoencoder psi[3]", 
+                                "FRASER-BB-Decoder 2.0",
+                                "FRASER-Autoencoder psi[5]",
+                                "FRASER-PCA psi[3]",
+                                "FRASER-Autoencoder 2.0", 
+                                "FRASER-PCA psi[5]",
+                                "FRASER-BB-Decoder psi[3]",
+                                "FRASER-PCA 2.0",
+                                "FRASER-BB-Decoder psi[5]"))+ 
   theme( legend.title = element_blank(),legend.position = "bottom", 
-         legend.text = element_text(size = 13)) + ylim(c(0,0.25))
+         legend.text = element_text(size = 11)) + ylim(c(0,0.25))
 print(plot_5)
 
 

@@ -632,12 +632,12 @@ df_pr$modname <- factor(df_pr$modname, levels = c("saseR-junctions","saseR-jacca
 
 ```{r}
 labels <- expression(paste("saseR-junctions"),
-                     paste("FRASER-PCA ", psi[3]),
                      paste("FRASER-Autoencoder ", psi[3]),
-                     paste("FRASER-PCA ", psi[5]),
-                     paste("FRASER-Autoencoder ", psi[5]),
                      paste("FRASER-PCA 2.0"),
-                     paste("FRASER-Autoencoder 2.0"))
+                     paste("FRASER-PCA ", psi[5]),
+                     paste("FRASER-Autoencoder 2.0"),
+                     paste("FRASER-Autoencoder ", psi[5]),
+                     paste("FRASER-PCA ", psi[3]))
 
 plot_2 <- ggplot(data = df_pr%>% filter(type == "PRC" & (modname %in% c("saseR-junctions",
                                 "FRASER-PCA psi3","FRASER-Autoencoder psi3",
@@ -651,9 +651,15 @@ plot_2 <- ggplot(data = df_pr%>% filter(type == "PRC" & (modname %in% c("saseR-j
                                 "FRASER-PCA psi5" = "cyan1",
                                 "FRASER-Autoencoder psi5" = "lightcyan4",
                                 "FRASER-PCA 2.0"= "#009E73", 
-                                "FRASER-Autoencoder 2.0" = "#0072B2"
-),
-                                labels = labels
+                                "FRASER-Autoencoder 2.0" = "#0072B2"),
+                                labels = labels,
+                     breaks = c("saseR-junctions",
+                                "FRASER-Autoencoder psi3",
+                                "FRASER-PCA 2.0",
+                                "FRASER-PCA psi5",
+                                "FRASER-Autoencoder 2.0",
+                                "FRASER-Autoencoder psi5",
+                                "FRASER-PCA psi3")
                               )+ 
   theme( legend.title = element_blank(),legend.position = "bottom", 
          legend.text = element_text(size = 12))
@@ -715,13 +721,15 @@ plot_1
 
 ```{r}
 labels <- expression(paste("saseR-junctions"),
-                     paste("saseR-jaccard"),
                      paste("FRASER-PCA ", psi[3]),
+                     paste("saseR-jaccard"),
                      paste("FRASER-Autoencoder ", psi[3]),
-                     paste("FRASER-PCA ", psi[5]),
-                     paste("FRASER-Autoencoder ", psi[5]),
                      paste("FRASER-PCA 2.0"),
-                     paste("FRASER-Autoencoder 2.0"))
+                     paste("FRASER-PCA ", psi[5]),
+                     paste("FRASER-Autoencoder 2.0"),
+                     paste("FRASER-Autoencoder ", psi[5])
+                     )
+
 
 plot_2 <- ggplot(data = df_pr%>% filter(type == "PRC" & (modname %in% c("saseR-junctions", "saseR-jaccard",
                                 "FRASER-PCA psi3","FRASER-Autoencoder psi3",
@@ -738,7 +746,16 @@ plot_2 <- ggplot(data = df_pr%>% filter(type == "PRC" & (modname %in% c("saseR-j
                                 "FRASER-PCA 2.0"= "#009E73", 
                                 "FRASER-Autoencoder 2.0" = "#0072B2"
 ),
-                                labels = labels
+                                labels = labels,
+                      breaks = c("saseR-junctions",
+                                 "FRASER-PCA psi3",
+                                 "saseR-jaccard",
+                                "FRASER-Autoencoder psi3",
+                                "FRASER-PCA 2.0",
+                                "FRASER-PCA psi5",
+                                "FRASER-Autoencoder 2.0",
+                                "FRASER-Autoencoder psi5"
+                                )
                               )+ 
   theme( legend.title = element_blank(),legend.position = "bottom", 
          legend.text = element_text(size = 12))
