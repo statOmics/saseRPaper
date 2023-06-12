@@ -5,6 +5,8 @@ date: "1/13/2023"
 output: html_document
 ---
 
+# This script is adapted from Soneson et al.: https://doi.org/10.1186/s13059-015-0862-3
+
 
 ```{r, import arguments}
 args <- (commandArgs(trailingOnly = TRUE))
