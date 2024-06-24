@@ -18,6 +18,6 @@ This repository contains the following main folders:
 
 `R-Functions`: This folder stores the functions used by saseR to perform aberrant expression or splicing analyses.
 
-Additionally, a `renv.lock file` is included for reproducibility of the results, and four .yml files to install different conda environments used for tha analyses. `saseRPaper.yml` is the main conda environment used throughout the manuscript, `rsem.1.3.0.yml` was used to perform RSEM simulations, which required different depencies to avoid errors, and `Fraser.2.0.yml` was used to perform the analyses with FRASER 2.0, which uses the Intron Jaccard Index. leafcutter.yml is used for the analysis of LeafcutterMD and SPOT. When FRASER 2.0 was benchmarked, also the `renv.lock` file in the `Aberrant-splicing` directory was used, rather than the `renv.lock` file from the main directory.
+Additionally, a `renv.lock file` is included for reproducibility of the results, and four .yml files to install different conda environments used for tha analyses. `saseRPaper.yml` is the main conda environment used throughout the manuscript, `rsem.1.3.0.yml` was used to perform RSEM simulations, which required different depencies to avoid errors, and `Fraser.2.0.yml` was used to perform the analyses with FRASER 2.0, which uses the Intron Jaccard Index. `leafcutter.yml`is used for the analysis of LeafcutterMD and SPOT. When FRASER 2.0 was benchmarked, also the `renv.lock` file in the `Aberrant-splicing` directory was used, rather than the `renv.lock` file from the main directory.
 
 
