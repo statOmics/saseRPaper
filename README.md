@@ -1,6 +1,6 @@
 # saseR: Scalable Aberrant Splicing and Expression Retrieval
 
-This repository contains the code to reproduce the results of the saseR manuscript (https://www.biorxiv.org/content/10.1101/2023.06.29.547014v1). By running the `workflow.txt` file, all datasets are downloaded from the respective sources, and the different workflows are ran to reproduce the figures of the manuscript. Note that some methods, can take a long time to run. Adaptations could be needed to run certain workflows on a local computer, e.g. the number of cores used to run STAR. Note that whenever 'RUV' is used as filename, this corresponds to the workflows or output of our saseR method.
+This repository contains the code to reproduce the results of the saseR manuscript. By running the `workflow.txt` file, all datasets are downloaded from the respective sources, and the different workflows are ran to reproduce the figures of the manuscript. Note that some methods, can take a long time to run. Adaptations could be needed to run certain workflows on a local computer, e.g. the number of cores used to run STAR. Note that whenever 'RUV' is used as filename, this corresponds to the workflows or output of our saseR method.
 
 ## Overview of the repository
 

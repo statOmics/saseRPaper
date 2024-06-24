@@ -72,6 +72,10 @@ Fraser_analysis_AE_jaccard <- loadFraserDataSet(dir = paste0(data_directory, "/F
 
 fRUV_jaccard <- readRDS(file = paste0(data_directory, "/seFit_fRUV_threshold_jaccard_Geuvadis.RDS"))
 
+LeafcutterMD <- readRDS(file = paste0(data_directory, "/Leafcutter_cluster_Geuvadis_pvalues.RDS"))
+
+SPOT <- readRDS(file = paste0(data_directory, "/SPOT_Geuvadis_pvalues.RDS"))
+
 ```
 
 ```{r}
@@ -241,6 +245,10 @@ unique_outliers_Fraser_AE_jaccard <- unique_outliers[rownames(unique_outliers)%i
 unique_outliers_fRUV_jaccard <- unique_outliers[rownames(unique_outliers)%in%
                                                              gene_pvalues_fRUV_jaccard$gene,]
 
+unique_outliers_LeafCutterMD <- unique_outliers[rownames(unique_outliers)%in% rownames(LeafcutterMD),]
+unique_outliers_SPOT <- unique_outliers[rownames(unique_outliers)%in% rownames(SPOT),]
+
+
 ```
 
 ```{r}
@@ -283,7 +291,11 @@ gene_pvalues_Fraser_AE_jaccard <- gene_pvalues_Fraser_AE_jaccard[order, -c(1)]
 order <- match(gene_pvalues_fRUV_jaccard$gene, rownames(unique_outliers_fRUV_jaccard))
 gene_pvalues_fRUV_jaccard <- gene_pvalues_fRUV_jaccard[order, -c(1)]
 
+order <- match(rownames(LeafcutterMD), rownames(unique_outliers_LeafCutterMD))
+gene_pvalues_LeafcutterMD <- LeafcutterMD[order,]
 
+order <- match(rownames(SPOT), rownames(unique_outliers_SPOT))
+gene_pvalues_SPOT <- SPOT[order,]
 ```
 
 
@@ -470,6 +482,30 @@ auc_fRUV_jaccard <- matrix(NA, ncol = ncol(gene_pvalues_fRUV_jaccard), nrow = 1)
 
 
 
+auc_LeafcutterMD <- matrix(NA, ncol = ncol(gene_pvalues_LeafcutterMD), nrow = 1)
+    
+    for(i in c(1:ncol(gene_pvalues_LeafcutterMD))){
+    scores <- -c(unlist(gene_pvalues_LeafcutterMD[,i]))
+    labels <- c(unlist(abs(unique_outliers_LeafCutterMD[,i])))
+    msmdat_simulation <- mmdata(c(join_scores(scores,chklen=F)),
+                                c(join_labels(labels,chklen=F)))
+    mscurves_simulation <- evalmod(msmdat_simulation)
+    auc_LeafcutterMD[,i] <- subset(auc(mscurves_simulation),curvetypes == "PRC")$aucs
+      
+    }
+
+auc_SPOT <- matrix(NA, ncol = ncol(gene_pvalues_SPOT), nrow = 1)
+    
+    for(i in c(1:ncol(gene_pvalues_SPOT))){
+    scores <- -c(unlist(gene_pvalues_SPOT[,i]))
+    labels <- c(unlist(abs(unique_outliers_SPOT[,i])))
+    msmdat_simulation <- mmdata(c(join_scores(scores,chklen=F)),
+                                c(join_labels(labels,chklen=F)))
+    mscurves_simulation <- evalmod(msmdat_simulation)
+    auc_SPOT[,i] <- subset(auc(mscurves_simulation),curvetypes == "PRC")$aucs
+      
+}
+
 ```
 
 
@@ -486,7 +522,9 @@ df_results <- data.frame("auc" = c(auc_fRUV_bins,
                                    auc_Fraser_PCA_jaccard,
                                    auc_Fraser_BB_jaccard,
                                    auc_Fraser_AE_jaccard,
-                                   auc_fRUV_jaccard),
+                                   auc_fRUV_jaccard,
+                                   auc_LeafcutterMD,
+                                   auc_SPOT),
                          "method" = c(rep(c("saseR-bins",
                                       "saseR-ASpli",
                                       "saseR-junctions",
@@ -499,7 +537,9 @@ df_results <- data.frame("auc" = c(auc_fRUV_bins,
                                       "FRASER-PCA 2.0",
                                       "FRASER-BB-Decoder 2.0",
                                       "FRASER-Autoencoder 2.0",
-                                      "saseR-jaccard"),each = 39)))
+                                      "saseR-jaccard",
+                                      "LeafcutterMD",
+                                      "SPOT"),each = 39)))
 
 
 df_results$method <- factor(df_results$method, levels = 
@@ -515,7 +555,9 @@ df_results$method <- factor(df_results$method, levels =
                                       "FRASER-BB-Decoder 2.0",
                                       "FRASER-PCA psi[3]",
                                       "FRASER-PCA psi[5]",
-                                      "FRASER-PCA 2.0"))
+                                      "FRASER-PCA 2.0",
+                                      "LeafcutterMD",
+                                      "SPOT"))
 
 ```
 
@@ -549,6 +591,8 @@ scores <- join_scores(-c(unlist(gene_pvalues_fRUV_bins)),
                       -c(unlist(gene_pvalues_Fraser_BB_jaccard)),
                       -c(unlist(gene_pvalues_Fraser_AE_jaccard)),
                       -c(unlist(gene_pvalues_fRUV_jaccard)),
+                      -c(unlist(gene_pvalues_LeafcutterMD)),
+                      -c(unlist(gene_pvalues_SPOT)),
                       chklen = F)
 
 labels <- join_labels(c(unlist(unique_outliers_fRUV_bins)),
@@ -564,6 +608,8 @@ labels <- join_labels(c(unlist(unique_outliers_fRUV_bins)),
                       c(unlist(unique_outliers_Fraser_BB_jaccard)),
                       c(unlist(unique_outliers_Fraser_AE_jaccard)),
                       c(unlist(unique_outliers_fRUV_jaccard)),
+                      c(unlist(unique_outliers_LeafCutterMD)),
+                      c(unlist(unique_outliers_SPOT)),
                       chklen = F)
 
 msmdat_simulation <- mmdata(scores,
@@ -581,8 +627,10 @@ msmdat_simulation <- mmdata(scores,
                                 "FRASER-PCA 2.0",
                                 "FRASER-BB-Decoder 2.0",
                                 "FRASER-Autoencoder 2.0",
-                                "saseR-jaccard"),
-                            dsids = c(1:13))
+                                "saseR-jaccard",
+                                "LeafcutterMD",
+                                "SPOT"),
+                            dsids = c(1:15))
 mscurves_simulation <- evalmod(msmdat_simulation)
 df_pr <- as.data.frame(mscurves_simulation)
 df_pr$modname <- factor(df_pr$modname,levels = c("saseR-bins",
@@ -597,7 +645,9 @@ df_pr$modname <- factor(df_pr$modname,levels = c("saseR-bins",
                                 "FRASER-BB-Decoder 2.0",
                                 "FRASER-PCA psi[3]",
                                 "FRASER-PCA psi[5]",
-                                "FRASER-PCA 2.0"
+                                "FRASER-PCA 2.0",
+                                "LeafcutterMD",
+                                "SPOT"
 ))
 ```
 
@@ -788,6 +838,88 @@ ggsave(paste0(output_directory,"/Figure-4.pdf"), Figure_1,
 
 ```
 
+
+# Supplementary figure LeafcutterMD and SPOT
+
+```{r}
+
+
+plot_extra <- ggplot(data = df_results %>% filter(method %in% c("saseR-bins",
+                                      "saseR-ASpli",
+                                      "saseR-junctions",
+                                      "FRASER-PCA 2.0",
+                                      "FRASER-BB-Decoder 2.0",
+                                      "FRASER-Autoencoder 2.0",
+                                      "LeafcutterMD",
+                                      "SPOT"))
+                 , aes(x = method, y = auc, col = method)) + stat_summary(fun.data = bp.vals, geom="boxplot") + geom_jitter(size = 0.2)  + 
+  scale_color_manual(values = c("saseR-bins" = "#E69F00", 
+                                "saseR-ASpli" = "#D55E00", 
+                                "saseR-junctions" = "#CC79A7",
+                                "FRASER-PCA 2.0"= "#009E73", 
+                                "FRASER-BB-Decoder 2.0" = "#56B4E9",
+                                "FRASER-Autoencoder 2.0" = "#0072B2",
+                                "LeafcutterMD" = "burlywood1",
+                                "SPOT" = "lightcyan4")) + 
+  ylab("Area under the curve per sample") + theme_bw()  + ylim(c(0,1.0001)) + theme(legend.position = "none")+
+  theme(axis.text=element_text(size=10), axis.title=element_text(size=12)) + theme(axis.title.x = element_blank(), axis.text.x = element_blank(), axis.ticks.x = element_blank())
+print(plot_extra)
+```
+
+
+
+```{r}
+plot_extra_2 <- ggplot(data = df_pr%>% filter(type == "PRC" & (modname %in% c("saseR-bins",
+                                "saseR-ASpli",
+                                "saseR-junctions",
+                                "FRASER-Autoencoder 2.0",
+                                      "FRASER-BB-Decoder 2.0",
+                                      "FRASER-PCA 2.0",
+                                "LeafcutterMD",
+                                "SPOT"))), 
+                       aes(x = x, y = y, col = modname)) + geom_line() + ggtitle(label = "") + ylab("Precision")  + xlab("Recall") + theme_bw() + 
+  theme(axis.text=element_text(size=10), axis.title=element_text(size=12))  + scale_color_manual(values = 
+                              c("saseR-bins" = "#E69F00", 
+                                "saseR-ASpli"="#D55E00", 
+                                "saseR-junctions" = "#CC79A7",
+                                "FRASER-PCA 2.0"= "#009E73", 
+                                "FRASER-BB-Decoder 2.0" = "#56B4E9",
+                                "FRASER-Autoencoder 2.0" = "#0072B2",
+                                "LeafcutterMD" = "burlywood1",
+                                "SPOT" = "lightcyan4"), 
+                              breaks = c("saseR-bins", 
+                                "FRASER-Autoencoder 2.0", 
+                                "saseR-junctions", 
+                                "FRASER-BB-Decoder 2.0",
+                                "saseR-ASpli",
+                                "FRASER-PCA 2.0",
+                                "LeafcutterMD",
+                                "SPOT"))+ 
+  theme( legend.title = element_blank(),legend.position = "bottom", 
+         legend.text = element_text(size = 12))
+print(plot_extra_2)
+
+```
+
+```{r}
+legend <- get_legend(plot_extra_2)
+prow <- plot_grid(plot_extra + theme(legend.position = "none"), plot_extra_2 + theme(legend.position = "none")
+                  , labels = c("A","B"), ncol = 2,
+                  rel_heights = c(1,1), align = "h")
+Figure_extra <- plot_grid(prow,legend,ncol = 1, rel_heights= c(1,0.1))
+Figure_extra
+
+```
+
+```{r}
+ggsave(paste0(output_directory,"/Supplementary-Figure-extra-splicing-methods.png"), Figure_extra, 
+       device = "png", width = 12, height = 6, dpi = 300)
+ggsave(paste0(output_directory,"/Supplementary-Figure-extra-splicing-methods.eps"), Figure_extra, 
+       device = cairo_ps, width = 12, height = 6, dpi = 300)
+ggsave(paste0(output_directory,"/Supplementary-Figure-extra-splicing-methods.pdf"), Figure_extra, 
+       device = "pdf", width = 12, height = 6, dpi = 300)
+
+```
 
 # Supplementary figure FRASER comparison
 

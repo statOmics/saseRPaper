@@ -1,0 +1,82 @@
+---
+title: "Untitled"
+author: "Alex"
+date: "2024-02-13"
+output: html_document
+---
+
+
+```{r, import arguments}
+ args <- (commandArgs(trailingOnly = TRUE))
+ for (i in 1:length(args)) {
+   eval(parse(text = args[[i]]))
+}
+ 
+```
+
+```{r}
+library(dplyr)
+```
+
+
+### Leafcutter-MD
+
+```{r}
+print(data_directory)
+print(output_directory)
+print(annotation_directory)
+```
+
+
+
+```{r}
+cluster_information <- readRDS(paste0(output_directory,"/cluster_gene_information"))
+spot_pvalues <- read.table(file = paste0(data_directory, "/SPOT_results__emperical_pvalue.txt"), header = T)
+rownames(spot_pvalues) <- spot_pvalues[,1]
+spot_pvalues[,1] <- NULL
+spot_pvalues_ordered <- spot_pvalues[,paste0("simulated_star_alignment_ERR1880",c(23:31,33:62),"Aligned.sortedByCoord.out.bam")]
+
+gtf <- rtracklayer::import(paste0(annotation_directory,'/Homo_sapiens.GRCh38.42.primary_assembly.protein_coding.gtf'))
+
+```
+
+
+
+```{r message=FALSE}
+cluster_information$clu <- gsub(x = cluster_information$clu, pattern = "\\w*:", replacement = "")
+
+
+merged_df <- as.data.frame(merge(x = cluster_information, y = spot_pvalues_ordered, by.x = "clu", by.y = 0))
+
+
+library(stringr)
+df <- merged_df[1,]
+
+for (i in 1:dim(merged_df)[1]){
+  df <- rbind(df,data.frame("genes" = str_split(string = merged_df[i,"genes"], pattern = ",")[[1]],
+                            merged_df[i,-2]))
+}
+
+df <- df[-1,]
+
+df_genenames <- merge(df, unique(data.frame("gene_id" = gtf$gene_id, "gene_name" = gtf$gene_name)), 
+                      by.x = "genes", by.y = "gene_name", all = F)
+
+pvalues_spot <- df_genenames[, c("gene_id",
+                            paste0("simulated_star_alignment_ERR1880",c(23:31,33:62),"Aligned.sortedByCoord.out.bam"))]
+pvalues_spot_min <- as.data.frame(pvalues_spot %>% group_by(gene_id) %>%
+  summarise(across(paste0("simulated_star_alignment_ERR1880",c(23:31,33:62),"Aligned.sortedByCoord.out.bam"),
+                   min)))
+
+gene_names_pvalues_spot <- c(unlist(pvalues_spot_min[,1]))
+pvalues_spot_min[,1] <- NULL
+
+rownames(pvalues_spot_min) <- gene_names_pvalues_spot
+
+
+saveRDS(object = pvalues_spot_min, file = paste0(output_directory, "/SPOT_Geuvadis_pvalues.RDS"))
+
+
+```
+
+

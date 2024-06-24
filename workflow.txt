@@ -4,7 +4,7 @@
 conda env create -f saseRPaper.yml
 conda env create -f rsem.1.3.0.yml
 conda env create -f Fraser.2.0.yml
-
+conda env create -f leafcutter.yml
 
 
 
@@ -19,6 +19,7 @@ ABERRANTEXPRESSION=$BASEDIR/Aberrant-expression
 DIFFERENTIALUSAGE=$BASEDIR/Differential-usage
 ABERRANTSPLICING=$BASEDIR/Aberrant-splicing
 FIGURESDIR=$BASEDIR/Figures
+LEAFCUTTERFUNC=$BASEDIR/leafcutter
 
 
 
@@ -49,6 +50,7 @@ df_renamed = df.rename(index = df["Unnamed: 0"])
 df_final = df_renamed.drop(columns = "Unnamed: 0")
 df_final.to_csv("./Data/GTEx/GTEx_counts_Marginal_Outliers_pandasdf.csv",index = True, header = True)
 exit()
+
 
 
 
@@ -444,6 +446,56 @@ R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTSPLICING/Fraser-PC
 "--args output_directory='$ABERRANTSPLICING/Output_files' data_directory='$DATADIR'" 
 
 
+conda activate leafcutter
+
+
+for i in {23..62}; do 
+bamfile=$GEUVADIS/Calculated_expression/ERR1880${i}/simulated_star_alignment_ERR1880${i}Aligned.sortedByCoord.out.bam
+bedfile=$bamfile.bed
+juncfile=$bamfile.junc
+
+samtools view $bamfile | python $LEAFCUTTERFUNC/scripts/filter_cs.py | $LEAFCUTTERFUNC/scripts/sam2bed.pl --use-RNA-strand - $bedfile
+
+$LEAFCUTTERFUNC/scripts/bed2junc.pl $bedfile $juncfile
+
+rm $bedfile
+echo $bamfile.junc >> $LEAFCUTTERFUNC/output/juncfiles_leafcutter.txt ;
+done
+
+python $LEAFCUTTERFUNC/clustering/leafcutter_cluster.py -j $LEAFCUTTERFUNC/output/juncfiles_leafcutter.txt -m 15 -o $LEAFCUTTERFUNC/output/leafcutter-clustering/leafcutter-clustering -l 500000 –checkchrom
+
+
+leafcutter/scripts/leafcutterMD.R --num_threads 8 leafcutter/output/leafcutter-clustering/leafcutter-clustering_perind_numers.counts.gz
+
+
+mv leafcutter_outlier_clusterPvals.txt leafcutter/output/
+mv leafcutter_outlier_effSize.txt leafcutter/output/
+mv leafcutter_outlier_pVals.txt leafcutter/output/
+
+
+cd leafcutter
+mv simulated_star_alignment_ERR1880* output
+
+leafviz/gtf2leafcutter.pl -o $GEUVADIS/Annotation/leafcutterannotation $GEUVADIS/Annotation/Homo_sapiens.GRCh38.42.primary_assembly.protein_coding.gtf
+
+cd $BASEDIR
+
+R --no-save --no-restore-data -e "rmarkdown::render('$LEAFCUTTERFUNC/Leafcutter_results_processing.Rmd')" \
+"--args data_directory='$LEAFCUTTERFUNC/output' annotation_directory='$GEUVADIS/Annotation' output_directory='$ABERRANTSPLICING/Output_files'" 
+
+
+
+cd SPOT
+python spot.py --juncfile $LEAFCUTTERFUNC/output/leafcutter-clustering/leafcutter-clustering_perind_numers.counts.gz --outprefix SPOT_results_
+
+
+
+cd $BASEDIR
+R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTSPLICING/SPOT_results_processing.Rmd')" \
+"--args data_directory='$BASEDIR/SPOT' annotation_directory='$GEUVADIS/Annotation' output_directory='$ABERRANTSPLICING/Output_files'"
+
+
+
 
 conda activate Fraserjaccard
 cd $ABERRANTSPLICING
@@ -581,6 +633,10 @@ R --no-save --no-restore-data -e "rmarkdown::render('$ABERRANTSPLICING/fRUV-edge
 
 
 # Figures
+
+
+R --no-save --no-restore-data -e "rmarkdown::render('$FIGURESDIR/Figure-Introduction.Rmd')" \
+"--args output_directory='$FIGURESDIR/Output_files'" 
 
 R --no-save --no-restore-data -e "rmarkdown::render('$BASEDIR/Differential-usage/Figures/figures_paper.Rmd')" \
 "--args output_directory='$FIGURESDIR/Output_files'" 

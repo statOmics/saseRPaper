@@ -1,0 +1,230 @@
+
+```{r, import arguments}
+ args <- (commandArgs(trailingOnly = TRUE))
+ for (i in 1:length(args)) {
+   eval(parse(text = args[[i]]))
+}
+ 
+```
+ 
+```{r}
+print(output_directory)
+```
+
+```{r}
+library(ggplot2)
+library(cowplot)
+```
+
+
+```{r}
+set.seed(100)
+
+dataDE <- data.frame(number = c(100, 110, 90, 105, 95, 200, 210, 190, 205, 195), 
+                   condition = c(rep(c("A", "B"), each = 5)))
+
+dataDTU <- data.frame(number = c(0.8, 0.77, 0.75, 0.72, 0.73,
+                                 0.2, 0.23, 0.25, 0.28, 0.27,
+                                 0.4, 0.42, 0.44, 0.38, 0.39,
+                                 0.6, 0.58, 0.56, 0.62, 0.61), 
+                   condition = c(rep(c("A", "B"), each = 10)),
+                   transcript = c(rep(rep(c("Transcript 1", "Transcript 2"), each = 5), times = 2)))
+
+dataOE <- data.frame(number = c(rnorm(19, mean = 200, sd = 5), 100))
+
+
+randoms_transcriptA <- c(rbinom(19, size = 200, prob = 0.8)/200, 0.4)
+dataOTU <- data.frame(number = c(randoms_transcriptA, 1 - randoms_transcriptA),
+                      transcript = rep(c("Transcript 1", "Transcript 2"), each = 20))
+
+```
+
+```{r}
+set.seed(2)
+p1 <- ggplot(data = dataDE, aes(x = condition, y = number, col = condition)) + 
+    geom_jitter(position=position_jitter(width=0.1, height=0.1), size = 1)  + 
+    xlab("Group") + ylab("Expression")  + ggtitle("Differential gene expression") + 
+    ylim(c(60,240)) + 
+    theme_bw() + 
+    theme(axis.ticks.y = element_blank(),
+          axis.text.y = element_blank(),
+          axis.ticks.x = element_blank(),
+          axis.title = element_text(size = 14),
+          axis.text = element_text(size = 14),
+          title = element_text(size = 16),
+          panel.grid.major = element_blank(), 
+          panel.grid.minor = element_blank(),
+          panel.border = element_blank(),
+          axis.line = element_line(colour = "black"),
+          plot.title = element_text(hjust = 0.5),
+          legend.position = "None")
+set.seed(2)
+p2 <- ggplot(data = dataDTU, aes(x = condition, y = number, col = condition)) + 
+    geom_jitter(position=position_jitter(width=0.1, height=0.1), size = 1)  + 
+    facet_wrap(~transcript) + 
+    xlab("Group") + ylab("Proportion of usage")  + ggtitle("Differential transcript usage") + 
+    theme_bw() + 
+    theme(axis.ticks.y = element_blank(),
+          #axis.text.y = element_blank(),
+          axis.ticks.x = element_blank(),
+          axis.title = element_text(size = 14),
+          axis.text = element_text(size = 14),
+          title = element_text(size = 16),
+          panel.grid.major = element_blank(), 
+          panel.grid.minor = element_blank(),
+          panel.border = element_blank(),
+          axis.line = element_line(colour = "black"),
+          plot.title = element_text(hjust = 0.5),
+          legend.position = "None",
+          strip.text = element_text(size=16) ) + 
+    scale_y_continuous(n.breaks = 3, limits = c(0,1)) 
+
+set.seed(2)
+p3 <- ggplot(data = dataOE, aes(y = number, x = "", col = "red")) + 
+    geom_jitter(position=position_jitter(width=0.1, height=0.1), size = 1)  + 
+    xlab("Population") + ylab("Expression")  + ggtitle("Aberrant gene expression") + 
+    theme_bw() + 
+    ylim(c(60,240)) + 
+    theme(axis.ticks.y = element_blank(),
+          axis.text.y = element_blank(),
+          axis.ticks.x = element_blank(),
+          axis.title = element_text(size = 14),
+          axis.text = element_text(size = 14),
+          title = element_text(size = 16),
+          panel.grid.major = element_blank(), 
+          panel.grid.minor = element_blank(),
+          panel.border = element_blank(),
+          axis.line = element_line(colour = "black"),
+          plot.title = element_text(hjust = 0.5),
+          legend.position = "None")
+set.seed(2)
+p4 <- ggplot(data = dataOTU, aes(x = "", y = number, col = "red")) + 
+    geom_jitter(position=position_jitter(width=0.1, height=0), size = 1)  + 
+    facet_wrap(~transcript) + 
+    xlab("Population") + ylab("Proportion of usage")  + ggtitle("Aberrant splicing") + 
+    theme_bw() + 
+    theme(axis.ticks.y = element_blank(),
+          #axis.text.y = element_blank(),
+          axis.ticks.x = element_blank(),
+          axis.title = element_text(size = 14),
+          axis.text = element_text(size = 14),
+          title = element_text(size = 16),
+          panel.grid.major = element_blank(), 
+          panel.grid.minor = element_blank(),
+          panel.border = element_blank(),
+          axis.line = element_line(colour = "black"),
+          plot.title = element_text(hjust = 0.5),
+          legend.position = "None",
+          strip.text = element_text(size=16) ) + 
+        scale_y_continuous(n.breaks = 3, limits = c(0,1)) 
+
+```
+
+
+```{r}
+set.seed(2)
+p1 <- ggplot(data = dataDE, aes(x = condition, y = number, col = condition)) + 
+    geom_jitter(position=position_jitter(width=0.2, height=0.05), size = 2)  + 
+    xlab("Group") + ylab("Expression")  + ggtitle("Differential gene expression") + 
+    ylim(c(60,240)) + 
+    theme_bw() + 
+    theme(axis.ticks.y = element_blank(),
+          axis.text.y = element_blank(),
+          axis.ticks.x = element_blank(),
+          axis.title = element_text(size = 14),
+          axis.text = element_text(size = 14),
+          title = element_text(size = 16),
+          panel.grid.major = element_blank(), 
+          panel.grid.minor = element_blank(),
+          panel.border = element_blank(),
+          axis.line = element_line(colour = "black"),
+          plot.title = element_text(hjust = 0.5),
+          legend.position = "None")
+set.seed(2)
+p2 <- ggplot(data = dataDTU, aes(x = condition, y = number, col = condition)) + 
+    geom_jitter(position=position_jitter(width=0.4, height=0), size = 2)  + 
+    facet_wrap(~transcript) + 
+    xlab("Group") + ylab("Proportion of usage")  + ggtitle("Differential transcript usage") + 
+    theme_bw() + 
+    theme(axis.ticks.y = element_blank(),
+          #axis.text.y = element_blank(),
+          axis.ticks.x = element_blank(),
+          axis.title = element_text(size = 14),
+          axis.text = element_text(size = 14),
+          title = element_text(size = 16),
+          panel.grid.major = element_blank(), 
+          panel.grid.minor = element_blank(),
+          panel.border = element_blank(),
+          axis.line = element_line(colour = "black"),
+          plot.title = element_text(hjust = 0.5),
+          legend.position = "None",
+          strip.text = element_text(size=16) ) + 
+    scale_y_continuous(n.breaks = 3, limits = c(0,1)) 
+
+set.seed(2)
+p3 <- ggplot(data = dataOE, aes(y = number, x = "", col = "red")) + 
+    geom_jitter(position=position_jitter(width=0.2, height=0.2), size = 2)  + 
+    xlab("Population") + ylab("Expression")  + ggtitle("Aberrant gene expression") + 
+    theme_bw() + 
+    ylim(c(60,240)) + 
+    theme(axis.ticks.y = element_blank(),
+          axis.text.y = element_blank(),
+          axis.ticks.x = element_blank(),
+          axis.title = element_text(size = 14),
+          axis.text = element_text(size = 14),
+          title = element_text(size = 16),
+          panel.grid.major = element_blank(), 
+          panel.grid.minor = element_blank(),
+          panel.border = element_blank(),
+          axis.line = element_line(colour = "black"),
+          plot.title = element_text(hjust = 0.5),
+          legend.position = "None")
+set.seed(2)
+p4 <- ggplot(data = dataOTU, aes(x = "", y = number, col = "red")) + 
+    geom_jitter(position=position_jitter(width=0.4, height=0), size = 2)  + 
+    facet_wrap(~transcript) + 
+    xlab("Population") + ylab("Proportion of usage")  + ggtitle("Aberrant splicing") + 
+    theme_bw() + 
+    theme(axis.ticks.y = element_blank(),
+          #axis.text.y = element_blank(),
+          axis.ticks.x = element_blank(),
+          axis.title = element_text(size = 14),
+          axis.text = element_text(size = 14),
+          title = element_text(size = 16),
+          panel.grid.major = element_blank(), 
+          panel.grid.minor = element_blank(),
+          panel.border = element_blank(),
+          axis.line = element_line(colour = "black"),
+          plot.title = element_text(hjust = 0.5),
+          legend.position = "None",
+          strip.text = element_text(size=16) ) + 
+        scale_y_continuous(n.breaks = 3, limits = c(0,1)) 
+
+```
+
+```{r}
+print(p1)
+print(p2)
+print(p3)
+print(p4)
+
+```
+
+
+```{r}
+
+Figure_introduction <- plot_grid(p1, p2, p3, p4, nrow = 2, labels = c("A", "B", "C", "D"))
+print(Figure_introduction)
+```
+
+
+```{r}
+ggsave(paste0(output_directory,"/Figure-introduction.png"), Figure_introduction, 
+       device = "png", width = 9, height = 4.5, dpi = 300)
+ggsave(paste0(output_directory,"/Figure-introduction.eps"), Figure_introduction, 
+       device = cairo_ps, width = 9, height = 4.5, dpi = 300)
+ggsave(paste0(output_directory,"/Figure-introduction.pdf"), Figure_introduction, 
+       device = "pdf", width = 9, height = 4.5, dpi = 300)
+
+```
+

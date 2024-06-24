@@ -114,6 +114,7 @@ se_marginal_outliers <- injectOutliers(se = se,
 saveRDS(object = se_marginal_outliers,
         file = paste0(data_directory,"/GTEx/GTEx_counts_Marginal_Outliers.RDS"))
 
+write.csv(counts(se_marginal_outliers), "/GTEx/GTEx_counts_Marginal_Outliers.csv", row.names = TRUE)
 ```
 
 ```{r, injecting outliers conditional on ischemic time}
